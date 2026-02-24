@@ -2,8 +2,11 @@ import React, { useState } from "react";
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
 import axios from 'axios';
 import { BASE_URL } from "../../../config"; 
+import { useDispatch } from 'react-redux';
+import AsyncStorage from '@react-native-async-storage/async-storage'; // 1. IMPORT MO ITO
 
 const Login = (props) => {
+  const dispatch = useDispatch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -17,30 +20,34 @@ const Login = (props) => {
     setLoading(true);
 
     try {
-      // FIX: Dinagdagan ng /api/ sa URL
       const response = await axios.post(`${BASE_URL}/api/users/login`, {
         email: email.toLowerCase().trim(),
         password: password,
       });
 
-      console.log("Full Server Response:", response.data);
-
+      // Siguraduhin na makuha ang tamang user object depende sa backend response
       const userData = response.data.user ? response.data.user : response.data;
       
+      // 2. I-SAVE SA ASYNCSTORAGE (Napakapahalaga para sa MyOrders)
+      // Ginagawa nating string ang object bago i-save
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+
+      // 3. I-SAVE DIN SA REDUX (Para sa Cart/UI)
+      dispatch({ type: 'LOGIN_USER', payload: userData });
+
       setLoading(false);
 
       if (userData.isAdmin === true || userData.isAdmin === "true") {
         Alert.alert("Welcome Admin", "Redirecting to Dashboard... 🛠️");
         props.navigation.navigate("AdminDashboard"); 
       } else {
-        Alert.alert("Success", "Login Successful! 🍕");
+        Alert.alert("Success", `Login Successful! Welcome ${userData.name} 🍕`);
         props.navigation.navigate("Main"); 
       }
 
     } catch (error) {
       setLoading(false);
       console.log("Login Error Details:", error.response?.data || error.message);
-      
       const errorMessage = error.response?.data?.message || "Invalid email or password";
       Alert.alert("Login Failed", errorMessage);
     }
@@ -73,16 +80,8 @@ const Login = (props) => {
         />
       </View>
 
-      <TouchableOpacity 
-        style={styles.loginBtn}
-        onPress={handleLogin}
-        disabled={loading}
-      >
-        {loading ? (
-          <ActivityIndicator color="white" />
-        ) : (
-          <Text style={styles.loginText}>LOGIN</Text>
-        )}
+      <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={loading}>
+        {loading ? <ActivityIndicator color="white" /> : <Text style={styles.loginText}>LOGIN</Text>}
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => props.navigation.navigate("Register")}>

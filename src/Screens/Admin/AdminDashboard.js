@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 
 const AdminDashboard = (props) => {
   return (
@@ -8,7 +8,7 @@ const AdminDashboard = (props) => {
       
       <View style={styles.menuContainer}>
         
-        {/* ITO NA ANG MAIN HUB: Dito ka na mag-aadd, edit, at delete */}
+        {/* MANAGE PRODUCTS HUB */}
         <TouchableOpacity 
           style={styles.button} 
           onPress={() => props.navigation.navigate("AdminProducts")}
@@ -16,15 +16,15 @@ const AdminDashboard = (props) => {
           <Text style={styles.buttonText}>Manage Products</Text>
         </TouchableOpacity>
 
-        {/* Inalis na natin ang 'Add New Pizza' dito para iwas gulo sa inventory */}
-
+        {/* VIEW ORDERS - Connected na sa AdminOrders screen */}
         <TouchableOpacity 
           style={[styles.button, { backgroundColor: "#2196F3" }]} 
-          onPress={() => Alert.alert("Orders", "Orders feature coming soon!")}
+          onPress={() => props.navigation.navigate("AdminOrders")}
         >
           <Text style={styles.buttonText}>View Orders</Text>
         </TouchableOpacity>
 
+        {/* LOGOUT */}
         <TouchableOpacity 
           style={[styles.button, { backgroundColor: "#333" }]} 
           onPress={() => props.navigation.navigate("Login")}
@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
     flex: 1, 
     backgroundColor: "#f8f9fa", 
     alignItems: "center", 
-    paddingTop: 80 // Tinaasan ko ng konti para mas maganda ang spacing
+    paddingTop: 80 
   },
   title: { 
     fontSize: 32, 
@@ -56,14 +56,14 @@ const styles = StyleSheet.create({
     marginTop: 20 
   },
   button: { 
-    width: "85%", // Mas malapad ng konti para mas clickable
+    width: "85%", 
     backgroundColor: "#e61e1e", 
     padding: 18, 
     borderRadius: 12, 
     marginBottom: 20, 
     alignItems: "center",
-    elevation: 3, // Dagdag anino para sa Android
-    shadowColor: "#000", // Dagdag anino para sa iOS
+    elevation: 3, 
+    shadowColor: "#000", 
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
