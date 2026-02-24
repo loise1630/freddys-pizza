@@ -1,55 +1,14 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { Text, List, Button, IconButton, Divider } from 'react-native-paper';
 import { useSelector, useDispatch } from 'react-redux';
-import axios from 'axios';
-import { BASE_URL } from '../../../config';
 
 const Cart = (props) => {
   const dispatch = useDispatch();
   
-  // Kunin ang cartItems at user details mula sa Redux state
   const cartItems = useSelector(state => state.cartItems.cartItems); 
   const user = useSelector(state => state.cartItems.user); 
-
   const totalPrice = cartItems.reduce((acc, item) => acc + item.price, 0);
-
-  const handleCheckout = async () => {
-    if (cartItems.length === 0) {
-      return Alert.alert("Ops!", "Walang laman ang basket mo. 🍕");
-    }
-
-    // Siguraduhin na ang fields dito ay tugma sa hinahanap ng MyOrders.js
-    const orderData = {
-      userName: user ? user.name : "Guest", 
-      items: cartItems.map(item => ({
-        productId: item._id,
-        name: item.name,
-        price: item.price,
-        quantity: 1
-      })),
-      totalAmount: totalPrice,
-      status: 'Pending', // NAPAKAHALAGA: Para lumitaw sa Pending tab
-      createdAt: new Date()
-    };
-
-    try {
-      console.log("Sending order to:", `${BASE_URL}/api/orders`);
-      const res = await axios.post(`${BASE_URL}/api/orders`, orderData);
-      
-      Alert.alert("Success! 🍕", `Order placed for ${orderData.userName}!`);
-      
-      // 1. Linisin ang cart sa Redux
-      dispatch({ type: 'CLEAR_CART' }); 
-
-      // 2. Imbes na sa "Main", dalhin natin sa "MyOrders" para makita ang progress
-      props.navigation.navigate("MyOrders"); 
-      
-    } catch (error) {
-      console.error("Checkout Error:", error.response ? error.response.data : error.message);
-      Alert.alert("Error", "Hindi naisave ang order. Siguraduhin na naka-ON ang backend server.");
-    }
-  };
 
   return (
     <View style={styles.container}>
@@ -65,8 +24,8 @@ const Cart = (props) => {
               <List.Item
                 title={item.name}
                 description={`₱${item.price.toFixed(2)}`}
-                left={props => <List.Icon {...props} icon="pizza" color="#e61e1e" />}
-                right={props => (
+                left={p => <List.Icon {...p} icon="pizza" color="#e61e1e" />}
+                right={p => (
                   <IconButton 
                     icon="close-circle-outline" 
                     iconColor="red" 
@@ -91,18 +50,19 @@ const Cart = (props) => {
         </View>
         <Button 
           mode="contained" 
-          onPress={handleCheckout} 
+          onPress={() => props.navigation.navigate("Checkout")} 
           disabled={cartItems.length === 0}
           style={[styles.checkoutBtn, { opacity: cartItems.length === 0 ? 0.5 : 1 }]}
           labelStyle={{ fontWeight: 'bold', fontSize: 16 }}
         >
-          PLACE ORDER
+          GO TO CHECKOUT
         </Button>
       </View>
     </View>
   );
 };
 
+// ETO ANG NAWAWALA KAYA NAG-E-ERROR:
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff', padding: 20 },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 5, color: '#333' },

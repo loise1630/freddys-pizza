@@ -10,8 +10,10 @@ import AdminDashboard from "../Screens/Admin/AdminDashboard";
 import ManageProducts from "../Screens/Admin/ManageProducts";
 import ProductContainer from '../Screens/Product/ProductContainer'; 
 import Cart from '../Screens/Cart/Cart';
+import Checkout from '../Screens/Checkout/Checkout'; 
 import AdminOrders from "../Screens/Admin/AdminOrders";
-import MyOrders from '../Screens/User/MyOrders'; // Import ang bago nating MyOrders
+import MyOrders from '../Screens/User/MyOrders'; 
+import UserProfile from '../Screens/User/UserProfile'; // 1. Siguraduhing na-import ito
 
 const Stack = createStackNavigator();
 
@@ -32,16 +34,8 @@ export default function MainNavigator() {
         }}
       >
         {/* --- AUTH SCREENS --- */}
-        <Stack.Screen 
-          name="Login" 
-          component={Login} 
-          options={{ headerShown: false }} 
-        />
-        <Stack.Screen 
-          name="Register" 
-          component={Register} 
-          options={{ title: 'Create Account' }}
-        />
+        <Stack.Screen name="Login" component={Login} options={{ headerShown: false }} />
+        <Stack.Screen name="Register" component={Register} options={{ title: 'Create Account' }} />
 
         {/* --- USER MAIN SCREEN (With Dropdown & Cart) --- */}
         <Stack.Screen 
@@ -51,7 +45,6 @@ export default function MainNavigator() {
             title: "Freddy's Pizza 🍕",
             headerRight: () => (
               <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 5 }}>
-                {/* CART ICON */}
                 <IconButton 
                   icon="cart" 
                   iconColor="white" 
@@ -59,7 +52,6 @@ export default function MainNavigator() {
                   onPress={() => navigation.navigate("Cart")} 
                 />
 
-                {/* PROFILE DROPDOWN */}
                 <Menu
                   visible={visible}
                   onDismiss={closeMenu}
@@ -72,12 +64,21 @@ export default function MainNavigator() {
                     />
                   }
                 >
+                  {/* 2. DITO DAPAT NAKALAGAY ANG MENU ITEM */}
+                  <Menu.Item 
+                    onPress={() => { closeMenu(); navigation.navigate("UserProfile"); }} 
+                    title="My Profile" 
+                    leadingIcon="account"
+                  />
+                  <Divider />
+                  
                   <Menu.Item 
                     onPress={() => { closeMenu(); navigation.navigate("MyOrders"); }} 
                     title="My Orders" 
                     leadingIcon="clipboard-list"
                   />
                   <Divider />
+                  
                   <Menu.Item 
                     onPress={() => { closeMenu(); navigation.navigate("Login"); }} 
                     title="Logout" 
@@ -89,40 +90,18 @@ export default function MainNavigator() {
           })} 
         /> 
         
-        {/* OTHER USER SCREENS */}
-        <Stack.Screen 
-          name="Cart" 
-          component={Cart} 
-          options={{ title: 'My Basket 🛒' }} 
-        />
-        
-        <Stack.Screen 
-          name="MyOrders" 
-          component={MyOrders} 
-          options={{ title: 'My Purchase 🍕' }} 
-        />
+        {/* --- USER SHOPPING FLOW --- */}
+        <Stack.Screen name="Cart" component={Cart} options={{ title: 'My Basket 🛒' }} />
+        <Stack.Screen name="Checkout" component={Checkout} options={{ title: 'Checkout 🍕' }} />
+        <Stack.Screen name="MyOrders" component={MyOrders} options={{ title: 'My Purchase 🍕' }} />
+
+        {/* 3. REGISTER ANG SCREEN SA STACK PARA HINDI MAG-ERROR SA NAVIGATION */}
+        <Stack.Screen name="UserProfile" component={UserProfile} options={{ title: 'User Profile' }} />
 
         {/* --- ADMIN SCREENS --- */}
-        <Stack.Screen 
-          name="AdminDashboard" 
-          component={AdminDashboard} 
-          options={{ 
-            title: "Admin Panel", 
-            headerLeft: null 
-          }} 
-        />
-
-        <Stack.Screen 
-          name="AdminProducts" 
-          component={ManageProducts} 
-          options={{ title: "Inventory Management" }} 
-        />
-
-        <Stack.Screen 
-          name="AdminOrders" 
-          component={AdminOrders} 
-          options={{ title: "Customer Orders 📋" }} 
-        /> 
+        <Stack.Screen name="AdminDashboard" component={AdminDashboard} options={{ title: "Admin Panel", headerLeft: null }} />
+        <Stack.Screen name="AdminProducts" component={ManageProducts} options={{ title: "Inventory Management" }} />
+        <Stack.Screen name="AdminOrders" component={AdminOrders} options={{ title: "Customer Orders 📋" }} /> 
         
       </Stack.Navigator>  
     </PaperProvider>
