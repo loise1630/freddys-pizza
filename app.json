@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "freddys-pizza",
+    "slug": "freddys-pizza",
+    "version": "1.0.0",
+    "newArchEnabled": false,
+    "plugins": [
+      "expo-sqlite"
+    ]
+  }
+}
