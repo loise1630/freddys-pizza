@@ -3,7 +3,7 @@ import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ActivityInd
 import axios from 'axios';
 import { BASE_URL } from "../../../config"; 
 import { useDispatch } from 'react-redux';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // 1. IMPORT MO ITO
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Login = (props) => {
   const dispatch = useDispatch();
@@ -12,6 +12,7 @@ const Login = (props) => {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
+    // 1. Basic Validation
     if (email === "" || password === "") {
       Alert.alert("Error", "Please fill in all fields");
       return;
@@ -20,23 +21,24 @@ const Login = (props) => {
     setLoading(true);
 
     try {
+      // 2. Request sa Backend
       const response = await axios.post(`${BASE_URL}/api/users/login`, {
         email: email.toLowerCase().trim(),
         password: password,
       });
 
-      // Siguraduhin na makuha ang tamang user object depende sa backend response
+      // Kunin ang user data (depende kung naka-wrap sa 'user' object ang response mo)
       const userData = response.data.user ? response.data.user : response.data;
       
-      // 2. I-SAVE SA ASYNCSTORAGE (Napakapahalaga para sa MyOrders)
-      // Ginagawa nating string ang object bago i-save
+      // 3. Save session locally (Para hindi kailangan mag-login ulit agad)
       await AsyncStorage.setItem('user', JSON.stringify(userData));
-
-      // 3. I-SAVE DIN SA REDUX (Para sa Cart/UI)
+      
+      // 4. Update Global State (Redux)
       dispatch({ type: 'LOGIN_USER', payload: userData });
 
       setLoading(false);
 
+      // 5. Navigation Logic base sa role
       if (userData.isAdmin === true || userData.isAdmin === "true") {
         Alert.alert("Welcome Admin", "Redirecting to Dashboard... 🛠️");
         props.navigation.navigate("AdminDashboard"); 
@@ -47,7 +49,7 @@ const Login = (props) => {
 
     } catch (error) {
       setLoading(false);
-      console.log("Login Error Details:", error.response?.data || error.message);
+      console.log("Login Error:", error.response?.data || error.message);
       const errorMessage = error.response?.data?.message || "Invalid email or password";
       Alert.alert("Login Failed", errorMessage);
     }
@@ -80,8 +82,16 @@ const Login = (props) => {
         />
       </View>
 
-      <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={loading}>
-        {loading ? <ActivityIndicator color="white" /> : <Text style={styles.loginText}>LOGIN</Text>}
+      <TouchableOpacity 
+        style={styles.loginBtn} 
+        onPress={handleLogin} 
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="white" />
+        ) : (
+          <Text style={styles.loginText}>LOGIN</Text>
+        )}
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => props.navigation.navigate("Register")}>
@@ -92,13 +102,49 @@ const Login = (props) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
-  title: { fontWeight: "bold", fontSize: 40, color: "#e61e1e", marginBottom: 40 },
-  inputView: { width: "80%", backgroundColor: "#f2f2f2", borderRadius: 25, height: 50, marginBottom: 20, justifyContent: "center", padding: 20 },
-  inputText: { height: 50, color: "black" },
-  loginBtn: { width: "80%", backgroundColor: "#e61e1e", borderRadius: 25, height: 50, alignItems: "center", justifyContent: "center", marginTop: 20, marginBottom: 10 },
-  loginText: { color: "white", fontWeight: "bold" },
-  actionsText: { color: "#003f5c", marginTop: 10 }
+  container: { 
+    flex: 1, 
+    backgroundColor: "#fff", 
+    alignItems: "center", 
+    justifyContent: "center" 
+  },
+  title: { 
+    fontWeight: "bold", 
+    fontSize: 40, 
+    color: "#e61e1e", 
+    marginBottom: 40 
+  },
+  inputView: { 
+    width: "80%", 
+    backgroundColor: "#f2f2f2", 
+    borderRadius: 25, 
+    height: 50, 
+    marginBottom: 20, 
+    justifyContent: "center", 
+    padding: 20 
+  },
+  inputText: { 
+    height: 50, 
+    color: "black" 
+  },
+  loginBtn: { 
+    width: "80%", 
+    backgroundColor: "#e61e1e", 
+    borderRadius: 25, 
+    height: 50, 
+    alignItems: "center", 
+    justifyContent: "center", 
+    marginTop: 20, 
+    marginBottom: 10 
+  },
+  loginText: { 
+    color: "white", 
+    fontWeight: "bold" 
+  },
+  actionsText: { 
+    color: "#003f5c", 
+    marginTop: 10 
+  }
 });
 
 export default Login;

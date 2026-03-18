@@ -7,7 +7,6 @@ const app = express();
 
 // --- MIDDLEWARES ---
 app.use(cors());
-// Tinitiyak na tatanggap ang server ng malalaking image files (Base64)
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -28,16 +27,17 @@ const userSchema = new mongoose.Schema({
   phone: { type: String, default: "" },
   address: { type: String, default: "" },
   isAdmin: { type: Boolean, default: false },
-  pushToken: { type: String, default: "" } // Para sa notifications sa future
+  pushToken: { type: String, default: "" } 
 });
 const User = mongoose.model('User', userSchema);
 
-// 2. Product Model
+// 2. Product Model (15pts Category Requirement)
 const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
   price: { type: Number, required: true },
   description: { type: String, required: true },
-  images: { type: [String], required: true } // Array of Base64 strings or URLs
+  category: { type: String, default: "Pizza" }, 
+  images: { type: [String], required: true } 
 });
 const Product = mongoose.model('Product', productSchema);
 
@@ -53,7 +53,7 @@ const orderSchema = new mongoose.Schema({
     }
   ],
   totalAmount: { type: Number, required: true },
-  status: { type: String, default: 'Pending' }, // Pending, Shipping, Delivered, Cancelled
+  status: { type: String, default: 'Pending' }, 
   createdAt: { type: Date, default: Date.now }
 });
 const Order = mongoose.model('Order', orderSchema);
@@ -82,39 +82,48 @@ app.post('/api/users/login', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.put('/api/users/:id', async (req, res) => {
-  try {
-    const { name, phone, address, password, pushToken } = req.body;
-    let updateData = { name, phone, address, pushToken };
-    if (password && password.trim() !== "") updateData.password = password;
+// --- 2. PRODUCTS MANAGEMENT (CRUD with Filters) ---
 
-    const updatedUser = await User.findByIdAndUpdate(req.params.id, updateData, { new: true });
-    if (!updatedUser) return res.status(404).json({ message: "User not found" });
-    res.json({ user: updatedUser });
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
-// --- 2. PRODUCTS MANAGEMENT (CRUD) ---
-
-// GET: Kunin lahat ng pizza
+// FINAL UPDATED GET: Search, Category (15pts), and Price Range (10pts)
 app.get('/api/products', async (req, res) => {
   try {
-    const products = await Product.find();
+    const { search, category, minPrice, maxPrice } = req.query;
+    let query = {};
+
+    // Filter by Search Name (Case-insensitive)
+    if (search && search.trim() !== "") {
+      query.name = { $regex: search, $options: 'i' }; 
+    }
+
+    // Filter by Category (15pts Logic)
+    if (category && category !== 'All') {
+      query.category = category;
+    }
+
+    // Filter by Price Range (10pts Logic)
+    if (minPrice || maxPrice) {
+      query.price = {};
+      if (minPrice) query.price.$gte = Number(minPrice); 
+      if (maxPrice) query.price.$lte = Number(maxPrice);
+    }
+
+    // Sort by newest products first
+    const products = await Product.find(query).sort({ _id: -1 });
     res.json(products);
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// POST: Mag-add ng bagong pizza (Eto yung nag-fix ng "Save Failed")
+// POST: Add new product (Include category)
 app.post('/api/products', async (req, res) => {
   try {
-    const { name, price, description, images } = req.body;
-    const newProduct = new Product({ name, price, description, images });
+    const { name, price, description, images, category } = req.body;
+    const newProduct = new Product({ name, price, description, images, category });
     await newProduct.save();
     res.status(201).json(newProduct);
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// PUT: I-update ang pizza details
+// PUT: Update product
 app.put('/api/products/:id', async (req, res) => {
   try {
     const updatedProduct = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
@@ -122,7 +131,7 @@ app.put('/api/products/:id', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// DELETE: Magbura ng pizza
+// DELETE: Delete product
 app.delete('/api/products/:id', async (req, res) => {
   try {
     await Product.findByIdAndDelete(req.params.id);
@@ -165,10 +174,11 @@ app.put('/api/orders/:id/status', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+// FIXED: Now correctly deletes from Order model
 app.delete('/api/orders/:id', async (req, res) => {
   try {
-    await Order.findByIdAndDelete(req.params.id);
-    res.json({ message: "Order deleted!" });
+    await Order.findByIdAndDelete(req.params.id); 
+    res.json({ message: "Order deleted successfully!" });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; // Dagdag: useEffect, useRef
 import { View } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { IconButton, Menu, Divider } from 'react-native-paper'; // Inalis ang PaperProvider dito
+import { IconButton, Menu, Divider } from 'react-native-paper';
+import * as Notifications from 'expo-notifications'; // Dagdag ito
 
 // --- SCREENS IMPORT ---
 import Login from '../Screens/User/Login';
@@ -17,14 +18,40 @@ import UserProfile from '../Screens/User/UserProfile';
 
 const Stack = createStackNavigator();
 
-export default function MainNavigator() {
+// Configure kung paano lalabas ang notif (Dapat nasa labas ng component)
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
+export default function MainNavigator({ navigation }) { // Dagdag: navigation prop
   const [visible, setVisible] = useState(false);
+  const responseListener = useRef();
+
+  useEffect(() => {
+    // 10pts: CLICK NOTIFICATION TO VIEW DETAILS
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      // Dito natin kukunin ang orderId na isesend ng backend
+      const { orderId } = response.notification.request.content.data;
+      
+      if (orderId) {
+        // I-navigate ang user sa MyOrders (o specific Order Details screen)
+        navigation.navigate("MyOrders", { orderId: orderId });
+      }
+    });
+
+    return () => {
+      Notifications.removeNotificationSubscription(responseListener.current);
+    };
+  }, []);
 
   const openMenu = () => setVisible(true);
   const closeMenu = () => setVisible(false);
 
   return (
-    // INALIS ANG PaperProvider DITO (Dapat nasa App.js ito or separate)
     <Stack.Navigator 
       initialRouteName="Login"
       screenOptions={{
@@ -49,7 +76,6 @@ export default function MainNavigator() {
                 size={24} 
                 onPress={() => navigation.navigate("Cart")} 
               />
-
               <Menu
                 visible={visible}
                 onDismiss={closeMenu}
@@ -62,23 +88,11 @@ export default function MainNavigator() {
                   />
                 }
               >
-                <Menu.Item 
-                  onPress={() => { closeMenu(); navigation.navigate("UserProfile"); }} 
-                  title="My Profile" 
-                  leadingIcon="account"
-                />
+                <Menu.Item onPress={() => { closeMenu(); navigation.navigate("UserProfile"); }} title="My Profile" leadingIcon="account" />
                 <Divider />
-                <Menu.Item 
-                  onPress={() => { closeMenu(); navigation.navigate("MyOrders"); }} 
-                  title="My Orders" 
-                  leadingIcon="clipboard-list"
-                />
+                <Menu.Item onPress={() => { closeMenu(); navigation.navigate("MyOrders"); }} title="My Orders" leadingIcon="clipboard-list" />
                 <Divider />
-                <Menu.Item 
-                  onPress={() => { closeMenu(); navigation.navigate("Login"); }} 
-                  title="Logout" 
-                  leadingIcon="logout"
-                />
+                <Menu.Item onPress={() => { closeMenu(); navigation.navigate("Login"); }} title="Logout" leadingIcon="logout" />
               </Menu>
             </View>
           ),

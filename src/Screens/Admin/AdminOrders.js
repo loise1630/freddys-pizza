@@ -8,7 +8,6 @@ const AdminOrders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  
   const [menuVisible, setMenuVisible] = useState(null);
 
   const fetchOrders = async () => {
@@ -38,7 +37,6 @@ const AdminOrders = () => {
     }
   };
 
-  // BAGONG LOGIC: Sa halip na axios.delete, gagamit tayo ng update status para sa "Cancelled"
   const handleCancelOrder = (id) => {
     setMenuVisible(null);
     Alert.alert("Cancel Order", "Sigurado ka bang i-ca-cancel ang order na ito?", [
@@ -49,16 +47,11 @@ const AdminOrders = () => {
 
   const getStatusStyle = (status) => {
     switch (status) {
-      case 'Accepted': 
-        return { bg: '#e8f5e9', text: '#2e7d32' }; 
-      case 'Shipped': 
-        return { bg: '#e3f2fd', text: '#1565c0' }; 
-      case 'Delivered': 
-        return { bg: '#f3e5f5', text: '#7b1fa2' }; 
-      case 'Cancelled': 
-        return { bg: '#ffebee', text: '#c62828' }; // Reddish for Cancelled
-      default: // Pending
-        return { bg: '#fff3cd', text: '#856404' }; 
+      case 'Accepted': return { bg: '#e8f5e9', text: '#2e7d32' }; 
+      case 'Shipped': return { bg: '#e3f2fd', text: '#1565c0' }; 
+      case 'Delivered': return { bg: '#f3e5f5', text: '#7b1fa2' }; 
+      case 'Cancelled': return { bg: '#ffebee', text: '#c62828' }; 
+      default: return { bg: '#fff3cd', text: '#856404' }; 
     }
   };
 
@@ -68,7 +61,6 @@ const AdminOrders = () => {
     <PaperProvider>
       <View style={styles.container}>
         <Text style={styles.title}>Manage Orders 📋</Text>
-        
         <ScrollView 
           horizontal 
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); fetchOrders();}} />}
@@ -87,11 +79,16 @@ const AdminOrders = () => {
                 {orders.map((item) => (
                   <DataTable.Row key={item._id} style={styles.row}>
                     <DataTable.Cell style={{ width: 80 }}>
-                       <Text style={styles.idText}>#{item._id.slice(-4).toUpperCase()}</Text>
+                      <Text style={styles.idText}>#{item._id.slice(-4).toUpperCase()}</Text>
                     </DataTable.Cell>
                     
-                    <DataTable.Cell style={{ width: 100 }}>{item.userName}</DataTable.Cell>
-                    <DataTable.Cell numeric style={{ width: 80 }}>₱{item.totalAmount.toFixed(0)}</DataTable.Cell>
+                    <DataTable.Cell style={{ width: 100 }}>
+                      <Text>{item.userName}</Text>
+                    </DataTable.Cell>
+
+                    <DataTable.Cell numeric style={{ width: 80 }}>
+                      <Text>₱{item.totalAmount.toFixed(0)}</Text>
+                    </DataTable.Cell>
                     
                     <DataTable.Cell style={{ width: 120 }}>
                       <Chip 
@@ -103,31 +100,29 @@ const AdminOrders = () => {
                     </DataTable.Cell>
 
                     <DataTable.Cell style={{ width: 80 }}>
-                        <Menu
-                          visible={menuVisible === item._id}
-                          onDismiss={() => setMenuVisible(null)}
-                          anchor={
-                            <IconButton 
-                              icon="chevron-down-circle-outline" 
-                              size={22} 
-                              iconColor="#666"
-                              onPress={() => setMenuVisible(item._id)} 
-                            />
-                          }
-                        >
-                          <Menu.Item onPress={() => updateOrderRequest(item._id, "Pending")} title="Pending" />
-                          <Menu.Item onPress={() => updateOrderRequest(item._id, "Accepted")} title="Accepted" />
-                          <Menu.Item onPress={() => updateOrderRequest(item._id, "Shipped")} title="Shipped" />
-                          <Menu.Item onPress={() => updateOrderRequest(item._id, "Delivered")} title="Delivered" />
-                          <Divider />
-                          {/* PINALITAN: Mula Delete, naging Cancel Order */}
-                          <Menu.Item 
-                            onPress={() => handleCancelOrder(item._id)} 
-                            title="Cancel Order" 
-                            titleStyle={{ color: '#c62828' }} 
-                            leadingIcon="close-circle-outline"
+                      <Menu
+                        visible={menuVisible === item._id}
+                        onDismiss={() => setMenuVisible(null)}
+                        anchor={
+                          <IconButton 
+                            icon="chevron-down-circle-outline" 
+                            size={22} 
+                            iconColor="#666"
+                            onPress={() => setMenuVisible(item._id)} 
                           />
-                        </Menu>
+                        }
+                      >
+                        <Menu.Item onPress={() => updateOrderRequest(item._id, "Pending")} title="Pending" />
+                        <Menu.Item onPress={() => updateOrderRequest(item._id, "Accepted")} title="Accepted" />
+                        <Menu.Item onPress={() => updateOrderRequest(item._id, "Shipped")} title="Shipped" />
+                        <Menu.Item onPress={() => updateOrderRequest(item._id, "Delivered")} title="Delivered" />
+                        <Divider />
+                        <Menu.Item 
+                          onPress={() => handleCancelOrder(item._id)} 
+                          title="Cancel Order" 
+                          titleStyle={{ color: '#c62828' }} 
+                        />
+                      </Menu>
                     </DataTable.Cell>
                   </DataTable.Row>
                 ))}

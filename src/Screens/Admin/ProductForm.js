@@ -9,10 +9,12 @@ const ProductForm = (props) => {
   const [price, setPrice] = useState("");
   const [description, setDescription] = useState("");
   const [images, setImages] = useState([]); 
+  const [category, setCategory] = useState("Pizza"); 
+
+  const categories = ["Pizza", "Drinks", "Sides"];
 
   const pickImage = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
-      // PINAKABAGO: In-update para sa Expo SDK 50+
       mediaTypes: ['images'], 
       allowsMultipleSelection: true, 
       quality: 0.4, 
@@ -31,7 +33,7 @@ const ProductForm = (props) => {
     }
     
     if (images.length === 0) {
-      Alert.alert("Photo Required", "Please add at least one photo of the pizza 🍕");
+      Alert.alert("Photo Required", "Please add at least one photo 🍕");
       return;
     }
 
@@ -39,13 +41,14 @@ const ProductForm = (props) => {
       name,
       price: Number(price),
       description,
+      category, 
       images: images, 
     };
 
     try {
       const response = await axios.post(`${BASE_URL}/api/products`, newProduct);
       if (response.status === 201) {
-        Alert.alert("Success", "Pizza added with photos! 🍕");
+        Alert.alert("Success", `${name} added to ${category}! 🍕`);
         props.navigation.navigate("AdminDashboard");
       }
     } catch (error) {
@@ -56,13 +59,27 @@ const ProductForm = (props) => {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Add New Pizza</Text>
+      <Text style={styles.title}>Add New Product</Text>
 
-      <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Pizza Name" />
+      <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Product Name" />
       <TextInput style={styles.input} value={price} onChangeText={setPrice} placeholder="Price" keyboardType="numeric" />
+      
+      <Text style={styles.label}>Category Selection:</Text>
+      <View style={styles.categoryRow}>
+        {categories.map((cat) => (
+          <TouchableOpacity 
+            key={cat} 
+            style={[styles.catButton, category === cat && styles.activeCatButton]} 
+            onPress={() => setCategory(cat)}
+          >
+            <Text style={[styles.catText, category === cat && styles.activeCatText]}>{cat}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <TextInput style={[styles.input, { height: 80 }]} value={description} onChangeText={setDescription} placeholder="Description" multiline />
 
-      <Text style={styles.label}>Photos ({images.length}) - Required</Text>
+      <Text style={styles.label}>Photos ({images.length})</Text>
       <View style={styles.imageContainer}>
         {images.map((uri, index) => (
           <Image key={index} source={{ uri }} style={styles.thumbnail} />
@@ -73,7 +90,7 @@ const ProductForm = (props) => {
       </View>
 
       <TouchableOpacity style={styles.saveButton} onPress={handleSubmit}>
-        <Text style={styles.saveButtonText}>Save Pizza</Text>
+        <Text style={styles.saveButtonText}>Save Product</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -84,9 +101,14 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: "bold", marginBottom: 20, textAlign: 'center', color: '#e61e1e' },
   input: { backgroundColor: "#f2f2f2", padding: 15, borderRadius: 10, marginBottom: 15 },
   label: { fontSize: 16, fontWeight: "bold", marginBottom: 10 },
+  categoryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+  catButton: { flex: 1, padding: 10, backgroundColor: '#eee', marginHorizontal: 5, borderRadius: 10, alignItems: 'center' },
+  activeCatButton: { backgroundColor: '#e61e1e' },
+  catText: { fontWeight: 'bold', color: '#666' },
+  activeCatText: { color: '#fff' },
   imageContainer: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 20 },
   thumbnail: { width: 70, height: 70, borderRadius: 10, marginRight: 10, marginBottom: 10 },
-  addButton: { width: 70, height: 70, borderRadius: 10, backgroundColor: '#ddd', justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 1 },
+  addButton: { width: 70, height: 70, borderRadius: 10, backgroundColor: '#ddd', justifyContent: 'center', alignItems: 'center' },
   addButtonText: { fontSize: 30, color: '#666' },
   saveButton: { backgroundColor: "#e61e1e", padding: 15, borderRadius: 10, alignItems: "center" },
   saveButtonText: { color: "#fff", fontWeight: "bold", fontSize: 18 }
