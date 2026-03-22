@@ -2,8 +2,6 @@ import React, { useEffect } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { Text, List, Button, IconButton, Divider } from 'react-native-paper';
 import { useSelector, useDispatch } from 'react-redux';
-
-// SQLITE IMPORT - Siguraduhing tama ang path na ito!
 import { getCartItemsSql } from '../../database/db';
 
 const Cart = (props) => {
@@ -13,25 +11,20 @@ const Cart = (props) => {
   const user = useSelector(state => state.cartItems.user); 
   const totalPrice = cartItems.reduce((acc, item) => acc + (item.price * (item.quantity || 1)), 0);
 
-  // REQUIREMENT: "get items when app is opened"
   useEffect(() => {
     const loadFromSql = () => {
       try {
         const items = getCartItemsSql();
-        console.log("SQLITE DEBUG: Hila na ang items ->", items);
-        
         if (items && items.length > 0) {
-          // Dito na natin ipapasa sa Redux yung nakuha sa SQLite
+          // Ginawa nating consistent ang type name
           dispatch({ type: 'SET_CART', payload: items });
-          console.log("LOG: Cart items restored to Redux! ✅");
         }
       } catch (error) {
         console.log("SQLITE LOAD ERROR:", error);
       }
     };
-    
     loadFromSql();
-  }, []); // Takbo ito tuwing bubuksan ang Cart screen
+  }, []); 
 
   return (
     <View style={styles.container}>
@@ -76,7 +69,6 @@ const Cart = (props) => {
           onPress={() => props.navigation.navigate("Checkout")} 
           disabled={cartItems.length === 0}
           style={[styles.checkoutBtn, { opacity: cartItems.length === 0 ? 0.5 : 1 }]}
-          labelStyle={{ fontWeight: 'bold', fontSize: 16 }}
         >
           GO TO CHECKOUT
         </Button>

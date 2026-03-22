@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, FlatList, ScrollView, RefreshControl, Alert, StyleSheet } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native'; // Dagdag useFocusEffect para mag-refresh pagbalik
+import { useNavigation, useFocusEffect } from '@react-navigation/native'; 
 import { Card, Chip, Button, ActivityIndicator, PaperProvider, SegmentedButtons } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios'; 
@@ -9,26 +9,29 @@ import { BASE_URL } from '../../../config';
 const MyOrders = () => {
   const navigation = useNavigation();
   const [orders, setOrders] = useState([]);
-  const [userReviews, setUserReviews] = useState([]); // Storage para sa existing reviews
+  const [userReviews, setUserReviews] = useState([]); 
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [statusTab, setStatusTab] = useState('Pending'); 
   const [userData, setUserData] = useState(null);
 
+  // 1. Function para makuha ang User Data, Orders, at Reviews sabay-sabay
   const getUserData = async () => {
     try {
       const user = await AsyncStorage.getItem('user');
       if (user) {
         const parsedUser = JSON.parse(user);
         setUserData(parsedUser);
+        
+        // Parallel fetching para mas mabilis
         await Promise.all([
           fetchUserOrders(parsedUser.name),
-          fetchUserReviews(parsedUser._id) // Kunin lahat ng reviews ng user
+          fetchUserReviews(parsedUser._id)
         ]);
       }
     } catch (error) {
-      console.log(error);
+      console.log("Context Error:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -46,21 +49,21 @@ const MyOrders = () => {
 
   const fetchUserReviews = async (userId) => {
     try {
-      // Endpoint na nagbabalik ng lahat ng reviews ng isang USER
       const response = await axios.get(`${BASE_URL}/api/reviews/user/${userId}`);
       setUserReviews(response.data);
     } catch (error) {
-      console.log("Fetch User Reviews Error:", error);
+      console.log("Fetch User Reviews Error:", error.message);
     }
   };
 
-  // Mag-refresh ang data kapag bumalik ang user sa screen na ito
+  // 2. Refresh logic kapag binalikan ang screen na ito
   useFocusEffect(
     useCallback(() => {
       getUserData();
     }, [])
   );
 
+  // 3. Filter orders base sa napiling tab
   useEffect(() => {
     const filtered = orders.filter(order => order.status === statusTab);
     setFilteredOrders(filtered);
@@ -100,7 +103,8 @@ const MyOrders = () => {
         <View style={styles.itemsList}>
           {item.items.map((pizza, index) => {
             const idToReview = pizza.productId || pizza._id;
-            // CHECK KUNG NA-RATE NA: Tignan kung may review na match sa productId at userId
+            
+            // Hanapin kung may existing review na ang user para sa product na ito
             const existingReview = userReviews.find(rev => rev.productId === idToReview);
 
             return (
@@ -116,7 +120,7 @@ const MyOrders = () => {
                     compact 
                     onPress={() => {
                       if (!userData?._id) {
-                          Alert.alert("Wait", "Please login again.");
+                          Alert.alert("Notice", "Please login again to continue.");
                           return;
                       }
                       navigation.navigate("ProductReview", { 
@@ -124,11 +128,18 @@ const MyOrders = () => {
                         userId: userData?._id, 
                         userName: userData?.name,
                         productName: pizza.name,
-                        existingReview: existingReview // I-pasa para alam ng review screen na Edit ito
+                        existingReview: existingReview // Ipapasa ang object para sa Edit logic
                       });
                     }}
-                    style={[styles.reviewBtn, existingReview && { borderColor: '#e61e1e' }]}
-                    labelStyle={{ fontSize: 10, color: existingReview ? '#e61e1e' : '#fff' }}
+                    style={[
+                      styles.reviewBtn, 
+                      existingReview && styles.editBtnOutline
+                    ]}
+                    labelStyle={{ 
+                      fontSize: 10, 
+                      fontWeight: 'bold',
+                      color: existingReview ? '#e61e1e' : '#fff' 
+                    }}
                   >
                     {existingReview ? 'Edit' : 'Rate'}
                   </Button>
@@ -176,7 +187,7 @@ const MyOrders = () => {
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#e61e1e']} />}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No {statusTab.toLowerCase()} orders. 🍕</Text>
+                <Text style={styles.emptyText}>No {statusTab.toLowerCase()} orders found. 🍕</Text>
               </View>
             }
             contentContainerStyle={{ padding: 10, paddingBottom: 30 }}
@@ -192,7 +203,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   tabContainer: { paddingVertical: 10, backgroundColor: '#fff' },
   segmentedButtons: { paddingHorizontal: 10 },
-  card: { marginVertical: 8, borderRadius: 12, elevation: 3, backgroundColor: '#fff' },
+  card: { marginVertical: 8, borderRadius: 12, elevation: 3, backgroundColor: '#fff', borderLeftWidth: 4, borderLeftColor: '#e61e1e' },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
   orderId: { fontWeight: 'bold', fontSize: 14, color: '#333' },
   dateText: { fontSize: 12, color: '#888' },
@@ -200,7 +211,8 @@ const styles = StyleSheet.create({
   pizzaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingVertical: 5 },
   pizzaName: { fontSize: 14, fontWeight: '600' },
   pizzaPrice: { fontSize: 12, color: '#666' },
-  reviewBtn: { backgroundColor: '#e61e1e', borderRadius: 20, minWidth: 70 },
+  reviewBtn: { backgroundColor: '#e61e1e', borderRadius: 20, minWidth: 80, height: 35, justifyContent: 'center' },
+  editBtnOutline: { backgroundColor: 'transparent', borderColor: '#e61e1e', borderWidth: 1 },
   divider: { height: 1, backgroundColor: '#eee', marginVertical: 10 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   totalLabel: { fontSize: 14, color: '#555' },

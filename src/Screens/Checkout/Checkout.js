@@ -9,10 +9,7 @@ import { clearCartSql } from '../../database/db';
 const Checkout = (props) => {
   const [loading, setLoading] = useState(false);
   const dispatch = useDispatch();
-  
-  // FIX: Safe access sa navigation props para hindi mag-crash
-  const { route, navigation } = props;
-  const params = route?.params || {}; 
+  const { navigation } = props;
 
   const cartItems = useSelector(state => state.cartItems.cartItems); 
   const user = useSelector(state => state.cartItems.user); 
@@ -38,29 +35,30 @@ const Checkout = (props) => {
     };
 
     try {
-      // Step 1: Save to MongoDB
       const response = await axios.post(`${BASE_URL}/api/orders`, orderData);
       
       if (response.status === 201) {
-        // Step 2: Clear SQLite Database
-        await clearCartSql();
-        console.log("SQLITE: Database cleared! 🧹");
+        // STEP 1: Burahin sa SQLite
+        clearCartSql();
 
-        // Step 3: Clear Redux State
-        // Siguraduhin na 'CLEAR_CART' ang name sa reducer mo, kung hindi, palitan ito
-        dispatch({ type: 'cart/clearCart' }); 
+        // STEP 2: Burahin sa Redux (Dapat mag-match ito sa Reducer mo!)
+        dispatch({ type: 'CLEAR_CART' }); 
 
-        Alert.alert("Success! 🍕", "Order placed successfully!");
-        
-        // Step 4: Reset Navigation safely
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Main' }], 
-        });
+        Alert.alert("Success! 🍕", "Order placed successfully!", [
+          {
+            text: "OK",
+            onPress: () => {
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Main' }], 
+              });
+            }
+          }
+        ]);
       }
     } catch (error) {
-      console.error("Checkout Error:", error.response ? error.response.data : error.message);
-      Alert.alert("Error", "Hindi naisave ang order. Pakicheck ang server connection.");
+      console.error("Checkout Error:", error);
+      Alert.alert("Error", "Check server connection.");
     } finally {
       setLoading(false);
     }
@@ -71,7 +69,7 @@ const Checkout = (props) => {
       <Text style={styles.title}>Order Summary 📝</Text>
       <Card style={styles.summaryCard}>
         <Card.Content>
-          <Text style={styles.info}>Customer: <Text style={{fontWeight: 'bold'}}>{user ? user.name : "Guest"}</Text></Text>
+          <Text style={styles.info}>Customer: {user ? user.name : "Guest"}</Text>
           <Divider style={{ marginVertical: 10 }} />
           {cartItems.map((item, index) => (
              <List.Item 
@@ -82,15 +80,16 @@ const Checkout = (props) => {
           ))}
           <Divider style={{ marginVertical: 10 }} />
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total Amount:</Text>
+            <Text style={styles.totalLabel}>Total:</Text>
             <Text style={styles.totalPrice}>₱{totalPrice.toFixed(2)}</Text>
           </View>
         </Card.Content>
       </Card>
+      
       {loading ? (
         <ActivityIndicator size="large" color="#e61e1e" />
       ) : (
-        <Button mode="contained" onPress={confirmOrder} style={styles.confirmBtn} contentStyle={styles.btnContent}>
+        <Button mode="contained" onPress={confirmOrder} style={styles.confirmBtn}>
           CONFIRM ORDER
         </Button>
       )}
@@ -100,15 +99,14 @@ const Checkout = (props) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: '#f8f8f8' },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, color: '#333' },
-  summaryCard: { marginBottom: 30, elevation: 4, borderRadius: 10, backgroundColor: '#fff' },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
+  summaryCard: { marginBottom: 30, borderRadius: 10, backgroundColor: '#fff' },
   info: { fontSize: 16 },
-  itemPrice: { alignSelf: 'center', fontSize: 14, color: '#666' },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, alignItems: 'center' },
-  totalLabel: { fontSize: 18, fontWeight: '600' },
+  itemPrice: { alignSelf: 'center' },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  totalLabel: { fontSize: 18 },
   totalPrice: { fontSize: 22, fontWeight: 'bold', color: '#e61e1e' },
-  confirmBtn: { backgroundColor: '#e61e1e', borderRadius: 10, marginTop: 10 },
-  btnContent: { paddingVertical: 10 }
+  confirmBtn: { backgroundColor: '#e61e1e', borderRadius: 10 }
 });
 
 export default Checkout;

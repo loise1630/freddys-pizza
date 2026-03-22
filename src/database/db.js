@@ -43,11 +43,11 @@ export const getCartItemsSql = () => {
   }
 };
 
-// BAGONG DAGDAG: Para sa "delete contents after checkout" (20pts)
+// BAGONG DAGDAG: Burahin lahat ng laman ng cart (Para sa requirements)
 export const clearCartSql = () => {
   try {
     db.runSync('DELETE FROM cart');
-    console.log("SQLITE: Database cleared! 🧹");
+    console.log("SQLITE: Cart cleared successfully! 🧹");
   } catch (error) {
     console.log("SQLITE DELETE ERROR:", error);
   }
