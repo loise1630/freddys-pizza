@@ -27,12 +27,16 @@ const AdminOrders = () => {
     fetchOrders();
   }, []);
 
+  // 5pts: UPDATE STATUS OF TRANSACTION
   const updateOrderRequest = async (id, newStatus) => {
     setMenuVisible(null);
     try {
+      // In-update ang endpoint path para tumugma sa order.js natin
       await axios.put(`${BASE_URL}/api/orders/${id}/status`, { status: newStatus });
+      Alert.alert("Success", `Order status updated to ${newStatus}`);
       fetchOrders(); 
     } catch (error) {
+      console.error(error);
       Alert.alert("Error", "Failed to update status");
     }
   };
@@ -87,7 +91,7 @@ const AdminOrders = () => {
                     </DataTable.Cell>
 
                     <DataTable.Cell numeric style={{ width: 80 }}>
-                      <Text>₱{item.totalAmount.toFixed(0)}</Text>
+                      <Text>₱{item.totalAmount?.toFixed(0) || 0}</Text>
                     </DataTable.Cell>
                     
                     <DataTable.Cell style={{ width: 120 }}>

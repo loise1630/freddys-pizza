@@ -2,8 +2,10 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const { Expo } = require('expo-server-sdk');
 
 const app = express();
+const expo = new Expo();
 
 // --- MIDDLEWARES ---
 app.use(cors());
@@ -12,14 +14,12 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // --- MONGODB CONNECTION ---
 const mongoURI = process.env.MONGO_URI;
-
 mongoose.connect(mongoURI)
   .then(() => console.log("Connected to MongoDB Atlas! 🍕"))
   .catch(err => console.error("MongoDB Connection Error:", err));
 
 // --- MODELS ---
 
-// 1. User Model
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
@@ -31,7 +31,6 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-// 2. Product Model (15pts Category Requirement)
 const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
   price: { type: Number, required: true },
@@ -41,7 +40,6 @@ const productSchema = new mongoose.Schema({
 });
 const Product = mongoose.model('Product', productSchema);
 
-// 3. Order Model
 const orderSchema = new mongoose.Schema({
   userName: { type: String, required: true },
   items: [
@@ -58,9 +56,14 @@ const orderSchema = new mongoose.Schema({
 });
 const Order = mongoose.model('Order', orderSchema);
 
+// --- IMPORT EXTERNAL ROUTES ---
+// Siguraduhin na ang review.js ay nasa backend/routes/ folder
+const reviewRoutes = require('./routes/review');
+app.use('/api/reviews', reviewRoutes);
+
 // --- ROUTES ---
 
-// --- 1. AUTHENTICATION ---
+// 1. AUTHENTICATION
 app.post('/api/users/register', async (req, res) => {
   try {
     const { name, email, password, phone, address } = req.body;
@@ -82,38 +85,29 @@ app.post('/api/users/login', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// --- 2. PRODUCTS MANAGEMENT (CRUD with Filters) ---
-
-// FINAL UPDATED GET: Search, Category (15pts), and Price Range (10pts)
+// 2. PRODUCTS MANAGEMENT
 app.get('/api/products', async (req, res) => {
   try {
     const { search, category, minPrice, maxPrice } = req.query;
     let query = {};
 
-    // Filter by Search Name (Case-insensitive)
     if (search && search.trim() !== "") {
       query.name = { $regex: search, $options: 'i' }; 
     }
-
-    // Filter by Category (15pts Logic)
     if (category && category !== 'All') {
       query.category = category;
     }
-
-    // Filter by Price Range (10pts Logic)
     if (minPrice || maxPrice) {
       query.price = {};
       if (minPrice) query.price.$gte = Number(minPrice); 
       if (maxPrice) query.price.$lte = Number(maxPrice);
     }
 
-    // Sort by newest products first
     const products = await Product.find(query).sort({ _id: -1 });
     res.json(products);
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// POST: Add new product (Include category)
 app.post('/api/products', async (req, res) => {
   try {
     const { name, price, description, images, category } = req.body;
@@ -123,32 +117,32 @@ app.post('/api/products', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// PUT: Update product
-app.put('/api/products/:id', async (req, res) => {
-  try {
-    const updatedProduct = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(updatedProduct);
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
+// 3. ORDERS MANAGEMENT
 
-// DELETE: Delete product
-app.delete('/api/products/:id', async (req, res) => {
-  try {
-    await Product.findByIdAndDelete(req.params.id);
-    res.json({ message: "Product deleted!" });
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
-// --- 3. ORDERS MANAGEMENT ---
-
+// POST: Create Order (Mula sa Checkout.js)
 app.post('/api/orders', async (req, res) => {
   try {
+    console.log("📥 New Order Received:", req.body.userName);
     const newOrder = new Order(req.body);
     await newOrder.save();
     res.status(201).json(newOrder);
-  } catch (error) { res.status(500).json({ error: error.message }); }
+  } catch (error) { 
+    console.error("❌ Order Error:", error.message);
+    res.status(500).json({ error: error.message }); 
+  }
 });
 
+// GET: Specific User Orders (ITO YUNG KULANG MO KAYA MAY 404 ERROR)
+app.get('/api/orders/user/:name', async (req, res) => {
+  try {
+    const orders = await Order.find({ userName: req.params.name }).sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET: All orders (Admin use)
 app.get('/api/orders', async (req, res) => {
   try {
     const orders = await Order.find().sort({ createdAt: -1 });
@@ -156,34 +150,33 @@ app.get('/api/orders', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.get('/api/orders/user/:userName', async (req, res) => {
-  try {
-    const { userName } = req.params;
-    const orders = await Order.find({ 
-      userName: { $regex: new RegExp("^" + userName + "$", "i") } 
-    }).sort({ createdAt: -1 });
-    res.json(orders);
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
+// 4. ORDER STATUS UPDATE (With Push Notification)
 app.put('/api/orders/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
     const updatedOrder = await Order.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    
+    // Push Notification Logic
+    const user = await User.findOne({ name: updatedOrder.userName });
+    if (user && user.pushToken && Expo.isExpoPushToken(user.pushToken)) {
+      let messages = [{
+        to: user.pushToken,
+        sound: 'default',
+        title: "Freddy's Pizza Update 🍕",
+        body: `Ang status ng iyong order ay: ${status}`,
+        data: { orderId: updatedOrder._id },
+      }];
+      let chunks = expo.chunkPushNotifications(messages);
+      for (let chunk of chunks) {
+        await expo.sendPushNotificationsAsync(chunk);
+      }
+    }
     res.json(updatedOrder);
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
-// FIXED: Now correctly deletes from Order model
-app.delete('/api/orders/:id', async (req, res) => {
-  try {
-    await Order.findByIdAndDelete(req.params.id); 
-    res.json({ message: "Order deleted successfully!" });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 // --- SERVER START ---
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT} 🚀`);
 });

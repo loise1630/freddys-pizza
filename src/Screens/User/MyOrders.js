@@ -1,65 +1,70 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, FlatList, ActivityIndicator, ScrollView, RefreshControl, Alert } from 'react-native';
-import { Text, Card, Chip, SegmentedButtons, PaperProvider } from 'react-native-paper';
-import axios from 'axios';
-import { BASE_URL } from '../../../config';
+import { View, Text, FlatList, ScrollView, RefreshControl, Alert, StyleSheet } from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native'; // Dagdag useFocusEffect para mag-refresh pagbalik
+import { Card, Chip, Button, ActivityIndicator, PaperProvider, SegmentedButtons } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios'; 
+import { BASE_URL } from '../../../config';
 
 const MyOrders = () => {
+  const navigation = useNavigation();
   const [orders, setOrders] = useState([]);
+  const [userReviews, setUserReviews] = useState([]); // Storage para sa existing reviews
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [statusTab, setStatusTab] = useState('Pending'); 
-  const [userName, setUserName] = useState('');
+  const [userData, setUserData] = useState(null);
 
-  // 1. Kunin ang data ng user mula sa storage
   const getUserData = async () => {
     try {
       const user = await AsyncStorage.getItem('user');
       if (user) {
         const parsedUser = JSON.parse(user);
-        console.log("Logged in user:", parsedUser.name);
-        setUserName(parsedUser.name);
-        await fetchUserOrders(parsedUser.name);
-      } else {
-        setLoading(false);
-        console.log("No user found in storage");
+        setUserData(parsedUser);
+        await Promise.all([
+          fetchUserOrders(parsedUser.name),
+          fetchUserReviews(parsedUser._id) // Kunin lahat ng reviews ng user
+        ]);
       }
     } catch (error) {
-      console.error("User storage error:", error);
-      setLoading(false);
-    }
-  };
-
-  // 2. Kunin ang orders mula sa backend
-  const fetchUserOrders = async (name) => {
-    try {
-      // Inilagay ko sa console para ma-check mo sa terminal kung tama ang URL
-      console.log(`Fetching: ${BASE_URL}/api/orders/user/${name}`);
-      const response = await axios.get(`${BASE_URL}/api/orders/user/${name}`);
-      setOrders(response.data);
-    } catch (error) {
-      console.error("Fetch orders error:", error.message);
-      // Magpapakita ng alert kung hindi makakonekta sa IP ng PC mo
-      Alert.alert("Connection Error", "Hindi maabot ang server. Check mo ang IP sa config.js mo.");
+      console.log(error);
     } finally {
-      // Dito natin sinisigurado na mamamatay ang loading spinner
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  // 3. Filter orders base sa napiling Tab
+  const fetchUserOrders = async (name) => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/orders/user/${name}`);
+      setOrders(response.data);
+    } catch (error) {
+      console.error("Fetch Orders Error:", error);
+    }
+  };
+
+  const fetchUserReviews = async (userId) => {
+    try {
+      // Endpoint na nagbabalik ng lahat ng reviews ng isang USER
+      const response = await axios.get(`${BASE_URL}/api/reviews/user/${userId}`);
+      setUserReviews(response.data);
+    } catch (error) {
+      console.log("Fetch User Reviews Error:", error);
+    }
+  };
+
+  // Mag-refresh ang data kapag bumalik ang user sa screen na ito
+  useFocusEffect(
+    useCallback(() => {
+      getUserData();
+    }, [])
+  );
+
   useEffect(() => {
     const filtered = orders.filter(order => order.status === statusTab);
     setFilteredOrders(filtered);
   }, [statusTab, orders]);
-
-  // Initial load
-  useEffect(() => {
-    getUserData();
-  }, []);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -72,7 +77,7 @@ const MyOrders = () => {
       case 'Shipped': return '#3498db';
       case 'Delivered': return '#8e44ad';
       case 'Cancelled': return '#e74c3c';
-      default: return '#f39c12'; // Pending
+      default: return '#f39c12';
     }
   };
 
@@ -88,24 +93,54 @@ const MyOrders = () => {
             textStyle={{ color: 'white', fontSize: 10, fontWeight: 'bold' }} 
             style={{ backgroundColor: getStatusColor(item.status), height: 28 }}
           >
-            {item.status}
+            {item.status === 'Delivered' ? 'Completed' : item.status}
           </Chip>
         </View>
 
         <View style={styles.itemsList}>
-          {item.items.map((pizza, index) => (
-            <View key={index} style={styles.pizzaRow}>
-              <Text style={styles.pizzaName}>{pizza.quantity}x {pizza.name}</Text>
-              <Text style={styles.pizzaPrice}>₱{pizza.price * pizza.quantity}</Text>
-            </View>
-          ))}
+          {item.items.map((pizza, index) => {
+            const idToReview = pizza.productId || pizza._id;
+            // CHECK KUNG NA-RATE NA: Tignan kung may review na match sa productId at userId
+            const existingReview = userReviews.find(rev => rev.productId === idToReview);
+
+            return (
+              <View key={index} style={styles.pizzaRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pizzaName}>{pizza.quantity}x {pizza.name}</Text>
+                  <Text style={styles.pizzaPrice}>₱{(pizza.price * pizza.quantity).toFixed(2)}</Text>
+                </View>
+                
+                {item.status === 'Delivered' && (
+                  <Button 
+                    mode={existingReview ? "outlined" : "contained"} 
+                    compact 
+                    onPress={() => {
+                      if (!userData?._id) {
+                          Alert.alert("Wait", "Please login again.");
+                          return;
+                      }
+                      navigation.navigate("ProductReview", { 
+                        productId: idToReview, 
+                        userId: userData?._id, 
+                        userName: userData?.name,
+                        productName: pizza.name,
+                        existingReview: existingReview // I-pasa para alam ng review screen na Edit ito
+                      });
+                    }}
+                    style={[styles.reviewBtn, existingReview && { borderColor: '#e61e1e' }]}
+                    labelStyle={{ fontSize: 10, color: existingReview ? '#e61e1e' : '#fff' }}
+                  >
+                    {existingReview ? 'Edit' : 'Rate'}
+                  </Button>
+                )}
+              </View>
+            );
+          })}
         </View>
-        
         <View style={styles.divider} />
-        
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>Total Payment</Text>
-          <Text style={styles.totalValue}>₱{item.totalAmount}</Text>
+          <Text style={styles.totalValue}>₱{item.totalAmount.toFixed(2)}</Text>
         </View>
       </Card.Content>
     </Card>
@@ -132,10 +167,7 @@ const MyOrders = () => {
         </View>
 
         {loading ? (
-          <View style={{ flex: 1, justifyContent: 'center' }}>
-            <ActivityIndicator color="#e61e1e" size="large" />
-            <Text style={{ textAlign: 'center', marginTop: 10, color: '#888' }}>Checking your pizza orders...</Text>
-          </View>
+          <View style={styles.center}><ActivityIndicator color="#e61e1e" size="large" /></View>
         ) : (
           <FlatList
             data={filteredOrders}
@@ -144,7 +176,7 @@ const MyOrders = () => {
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#e61e1e']} />}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No {statusTab} orders yet. 🍕</Text>
+                <Text style={styles.emptyText}>No {statusTab.toLowerCase()} orders. 🍕</Text>
               </View>
             }
             contentContainerStyle={{ padding: 10, paddingBottom: 30 }}
@@ -156,23 +188,25 @@ const MyOrders = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f0f0f0' },
-  tabContainer: { backgroundColor: '#fff', paddingVertical: 10, elevation: 2 },
-  segmentedButtons: { paddingHorizontal: 10, minWidth: 550 },
-  card: { marginBottom: 12, borderRadius: 8, backgroundColor: '#fff', elevation: 3 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  container: { flex: 1, backgroundColor: '#f8f8f8' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  tabContainer: { paddingVertical: 10, backgroundColor: '#fff' },
+  segmentedButtons: { paddingHorizontal: 10 },
+  card: { marginVertical: 8, borderRadius: 12, elevation: 3, backgroundColor: '#fff' },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15 },
   orderId: { fontWeight: 'bold', fontSize: 14, color: '#333' },
-  dateText: { fontSize: 11, color: '#888' },
+  dateText: { fontSize: 12, color: '#888' },
   itemsList: { marginBottom: 10 },
-  pizzaRow: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 3 },
-  pizzaName: { color: '#555', fontSize: 14 },
-  pizzaPrice: { fontWeight: '500', color: '#333' },
-  divider: { height: 1, backgroundColor: '#f0f0f0', marginVertical: 10 },
+  pizzaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingVertical: 5 },
+  pizzaName: { fontSize: 14, fontWeight: '600' },
+  pizzaPrice: { fontSize: 12, color: '#666' },
+  reviewBtn: { backgroundColor: '#e61e1e', borderRadius: 20, minWidth: 70 },
+  divider: { height: 1, backgroundColor: '#eee', marginVertical: 10 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  totalLabel: { fontSize: 13, color: '#777' },
-  totalValue: { fontWeight: 'bold', color: '#e61e1e', fontSize: 17 },
-  emptyContainer: { alignItems: 'center', marginTop: 100 },
-  emptyText: { color: '#999', fontSize: 16 }
+  totalLabel: { fontSize: 14, color: '#555' },
+  totalValue: { fontSize: 16, fontWeight: 'bold', color: '#e61e1e' },
+  emptyContainer: { alignItems: 'center', marginTop: 50 },
+  emptyText: { fontSize: 16, color: '#999' }
 });
 
 export default MyOrders;

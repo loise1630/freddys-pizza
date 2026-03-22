@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ActivityIndicator, Image, TouchableOpacity, FlatList, TextInput } from 'react-native';
-import { Text, Searchbar, Card, Modal, Portal, PaperProvider, IconButton, Badge, Button } from 'react-native-paper';
+import { StyleSheet, View, ActivityIndicator, Image, TouchableOpacity, FlatList, ScrollView } from 'react-native';
+import { Text, Searchbar, Card, Modal, Portal, PaperProvider, IconButton, Badge, Button, Divider } from 'react-native-paper';
 import axios from 'axios';
 import { BASE_URL } from '../../../config';
 import { useDispatch, useSelector } from 'react-redux';
@@ -8,14 +8,15 @@ import { addToCartSql } from '../../database/db';
 
 const ProductContainer = (props) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [minPrice, setMinPrice] = useState('');
-  const [maxPrice, setMaxPrice] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  
   const [pizzas, setPizzas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [visible, setVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+
+  // Review states
+  const [productReviews, setProductReviews] = useState([]);
+  const [fetchingReviews, setFetchingReviews] = useState(false);
 
   const dispatch = useDispatch();
   const cartItems = useSelector((state) => state.cartItems.cartItems); 
@@ -24,24 +25,39 @@ const ProductContainer = (props) => {
     try {
       setLoading(true);
       const response = await axios.get(`${BASE_URL}/api/products`, {
-        params: {
-          search: searchQuery,
-          category: selectedCategory,
-          minPrice: minPrice,
-          maxPrice: maxPrice
-        }
+        params: { search: searchQuery, category: selectedCategory }
       });
       setPizzas(response.data);
-      setLoading(false);
     } catch (error) {
-      console.error("Fetch Error:", error);
+      console.error("Fetch Products Error:", error);
+    } finally {
       setLoading(false);
+    }
+  };
+
+  // FINAL FIX: Dinagdag ang '/product/' sa endpoint
+  const fetchProductReviews = async (id) => {
+    try {
+      setFetchingReviews(true);
+      const response = await axios.get(`${BASE_URL}/api/reviews/product/${id}`);
+      setProductReviews(response.data);
+    } catch (error) {
+      console.log("Review Fetch Error:", error.message);
+      setProductReviews([]); // Clear reviews kung may error o wala pang reviews
+    } finally {
+      setFetchingReviews(false);
     }
   };
 
   useEffect(() => {
     fetchPizzas();
   }, [searchQuery, selectedCategory]);
+
+  useEffect(() => {
+    if (selectedProduct?._id && visible) {
+      fetchProductReviews(selectedProduct._id);
+    }
+  }, [selectedProduct, visible]);
 
   const addToCart = (item) => {
     dispatch({ type: 'ADD_TO_CART', payload: item });
@@ -57,7 +73,7 @@ const ProductContainer = (props) => {
       <Card style={styles.card}>
         <TouchableOpacity onPress={() => { setSelectedProduct(item); setVisible(true); }}>
           <Image 
-            source={{ uri: item.images && item.images.length > 0 ? item.images[0] : 'https://via.placeholder.com/150' }} 
+            source={{ uri: item.images?.[0] || 'https://via.placeholder.com/150' }} 
             style={styles.pizzaImage} 
           />
         </TouchableOpacity>
@@ -82,7 +98,7 @@ const ProductContainer = (props) => {
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.headerTitle}>Freddy's Pizza 🍕</Text>
-            <Text style={styles.headerSubtitle}>Filter & Search your favorites</Text>
+            <Text style={styles.headerSubtitle}>Order your favorites</Text>
           </View>
           <TouchableOpacity onPress={() => props.navigation.navigate("Cart")}>
             <View>
@@ -98,32 +114,6 @@ const ProductContainer = (props) => {
           value={searchQuery}
           style={styles.search}
         />
-
-        {/* PRICE RANGE FILTER - GINAWANG SELF-CLOSING ANG TEXTINPUT PARA WALANG STRAY TEXT */}
-        <View style={styles.filterContainer}>
-          <TextInput
-            placeholder="Min ₱"
-            keyboardType="numeric"
-            style={styles.priceInput}
-            value={minPrice}
-            onChangeText={setMinPrice}
-          />
-          <TextInput
-            placeholder="Max ₱"
-            keyboardType="numeric"
-            style={styles.priceInput}
-            value={maxPrice}
-            onChangeText={setMaxPrice}
-          />
-          <Button 
-            mode="contained" 
-            onPress={fetchPizzas} 
-            style={styles.filterBtn} 
-            labelStyle={{fontSize: 12}}
-          >
-            Apply
-          </Button>
-        </View>
 
         <View style={styles.categoryRow}>
           {['All', 'Pizza', 'Drinks', 'Sides'].map((cat) => (
@@ -146,32 +136,58 @@ const ProductContainer = (props) => {
             renderItem={renderItem}
             numColumns={2}
             contentContainerStyle={styles.listContainer}
-            ListEmptyComponent={<Text style={styles.emptyText}>No products found.</Text>}
           />
         )}
 
         <Portal>
           <Modal 
             visible={visible} 
-            onDismiss={() => setVisible(false)} 
+            onDismiss={() => { setVisible(false); setProductReviews([]); }} 
             contentContainerStyle={styles.modalContent}
           >
             {selectedProduct && (
-              <View>
+              <ScrollView showsVerticalScrollIndicator={false}> 
                 <Image 
-                  source={{ uri: selectedProduct.images && selectedProduct.images.length > 0 ? selectedProduct.images[0] : 'https://via.placeholder.com/150' }} 
+                  source={{ uri: selectedProduct.images?.[0] || 'https://via.placeholder.com/150' }} 
                   style={styles.modalImage} 
                 />
                 <Text style={styles.modalTitle}>{selectedProduct.name}</Text>
                 <Text style={styles.modalDesc}>{selectedProduct.description}</Text>
+                
                 <Button 
                   mode="contained" 
                   onPress={() => { addToCart(selectedProduct); setVisible(false); }} 
-                  buttonColor="#27ae60"
+                  buttonColor="#e61e1e"
+                  style={{marginVertical: 10}}
                 >
-                  <Text style={{color: 'white'}}>Add to Cart - ₱{selectedProduct.price}</Text>
+                  Add to Cart - ₱{selectedProduct.price.toFixed(2)}
                 </Button>
-              </View>
+
+                <Divider style={{ marginVertical: 15 }} />
+
+                <Text style={styles.sectionTitle}>Customer Reviews ⭐</Text>
+                
+                {fetchingReviews ? (
+                  <ActivityIndicator color="#e61e1e" style={{ marginVertical: 10 }} />
+                ) : productReviews.length > 0 ? (
+                  productReviews.map((rev, index) => (
+                    <View key={index} style={styles.reviewItem}>
+                      <View style={styles.reviewHeader}>
+                        <Text style={styles.reviewUser}>{rev.userName}</Text>
+                        <Text style={styles.reviewStars}>{"⭐".repeat(rev.rating)}</Text>
+                      </View>
+                      <Text style={styles.reviewText}>{rev.comment}</Text>
+                      <Divider style={styles.innerDivider} />
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.noReviews}>No reviews yet. Be the first to buy and rate!</Text>
+                )}
+
+                <Button mode="text" onPress={() => { setVisible(false); setProductReviews([]); }} textColor="#888">
+                  Close
+                </Button>
+              </ScrollView>
             )}
           </Modal>
         </Portal>
@@ -186,9 +202,6 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#e61e1e' },
   headerSubtitle: { fontSize: 12, color: '#666' },
   search: { margin: 15, borderRadius: 10, backgroundColor: '#f0f0f0' },
-  filterContainer: { flexDirection: 'row', paddingHorizontal: 15, gap: 10, marginBottom: 10 },
-  priceInput: { flex: 1, height: 40, borderBottomWidth: 1, borderColor: '#ccc', paddingLeft: 5, color: '#000' },
-  filterBtn: { backgroundColor: '#e61e1e', height: 40, justifyContent: 'center' },
   categoryRow: { flexDirection: 'row', paddingHorizontal: 15, gap: 10, marginBottom: 15 },
   catChip: { paddingHorizontal: 15, paddingVertical: 6, borderRadius: 20, backgroundColor: '#f0f0f0', borderWidth: 1, borderColor: '#eee' },
   activeCat: { backgroundColor: '#e61e1e', borderColor: '#e61e1e' },
@@ -200,12 +213,19 @@ const styles = StyleSheet.create({
   pizzaName: { fontWeight: 'bold', fontSize: 14 },
   pizzaPriceText: { color: '#e61e1e', marginTop: 5, fontWeight: 'bold' },
   absPlus: { position: 'absolute', right: -5, bottom: -5 },
-  modalContent: { backgroundColor: 'white', padding: 20, margin: 20, borderRadius: 10 },
+  modalContent: { backgroundColor: 'white', padding: 20, margin: 20, borderRadius: 10, maxHeight: '80%' },
   modalImage: { width: '100%', height: 200, borderRadius: 10, marginBottom: 10 },
   modalTitle: { fontSize: 20, fontWeight: 'bold' },
   modalDesc: { marginVertical: 10, color: '#666' },
   badge: { position: 'absolute', top: 5, right: 5, backgroundColor: '#e61e1e' },
-  emptyText: { textAlign: 'center', marginTop: 50, color: '#888' }
+  sectionTitle: { fontWeight: 'bold', fontSize: 16, marginBottom: 10 },
+  reviewItem: { marginBottom: 10 },
+  reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  reviewUser: { fontWeight: 'bold', fontSize: 13, color: '#333' },
+  reviewStars: { fontSize: 10 },
+  reviewText: { fontSize: 13, color: '#555', marginTop: 2 },
+  innerDivider: { marginTop: 8, backgroundColor: '#f2f2f2' },
+  noReviews: { textAlign: 'center', color: '#aaa', fontStyle: 'italic', marginVertical: 10, fontSize: 12 }
 });
 
 export default ProductContainer;
