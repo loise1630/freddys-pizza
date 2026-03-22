@@ -28,8 +28,8 @@ const userSchema = new mongoose.Schema({
   address: { type: String, default: "" },
   isAdmin: { type: Boolean, default: false },
   pushToken: { type: String, default: "" },
-  googleId: { type: String, default: "" }, // Dagdag para sa Google Login
-  image: { type: String, default: "" }    // Dagdag para sa Profile Pic
+  googleId: { type: String, default: "" }, 
+  image: { type: String, default: "" }    
 });
 const User = mongoose.model('User', userSchema);
 
@@ -59,12 +59,13 @@ const orderSchema = new mongoose.Schema({
 const Order = mongoose.model('Order', orderSchema);
 
 // --- EXTERNAL ROUTES ---
+// Siguraduhin na ang review.js ay nasa backend/routes/ folder
 const reviewRoutes = require('./routes/review');
 app.use('/api/reviews', reviewRoutes);
 
 // --- ROUTES ---
 
-// 1. AUTHENTICATION (Manual Register)
+// 1. AUTHENTICATION (Register & Login)
 app.post('/api/users/register', async (req, res) => {
   try {
     const { name, email, password, phone, address } = req.body;
@@ -83,34 +84,31 @@ app.post('/api/users/register', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// 2. MANUAL LOGIN
 app.post('/api/users/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email: email.toLowerCase(), password });
     if (!user) return res.status(400).json({ message: "Invalid credentials" });
-    res.json(user); // Inalis ang { user } wrap para mag-match sa frontend logic mo
+    res.json(user); 
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// 3. GOOGLE LOGIN (ITO ANG SOLUSYON SA RATING ERROR)
+// 2. GOOGLE LOGIN (Fix para sa Ratings)
 app.post('/api/users/google-login', async (req, res) => {
   try {
     const { email, name, googleId, image } = req.body;
     let user = await User.findOne({ email: email.toLowerCase() });
 
     if (user) {
-      // Kung may user na, ibalik ang data (kasama ang _id na kailangan sa Rating)
       res.json(user);
     } else {
-      // Kung wala pa, gawan ng record sa database
       const newUser = new User({
         name,
         email: email.toLowerCase(),
         googleId,
         image,
         isAdmin: false,
-        password: Math.random().toString(36).slice(-8) // Random password for schema requirement
+        password: Math.random().toString(36).slice(-8) 
       });
       const savedUser = await newUser.save();
       res.status(201).json(savedUser);
@@ -120,7 +118,7 @@ app.post('/api/users/google-login', async (req, res) => {
   }
 });
 
-// 4. PRODUCTS MANAGEMENT
+// 3. PRODUCTS MANAGEMENT
 app.get('/api/products', async (req, res) => {
   try {
     const { search, category, minPrice, maxPrice } = req.query;
@@ -146,7 +144,7 @@ app.post('/api/products', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// 5. ORDERS MANAGEMENT
+// 4. ORDERS MANAGEMENT
 app.post('/api/orders', async (req, res) => {
   try {
     const newOrder = new Order(req.body);
@@ -169,19 +167,23 @@ app.get('/api/orders', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// 6. ORDER STATUS & PUSH NOTIFICATIONS
+// 5. ORDER STATUS & PUSH NOTIFICATIONS (Deep Linking Finalized)
 app.put('/api/orders/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
     const updatedOrder = await Order.findByIdAndUpdate(req.params.id, { status }, { new: true });
     const user = await User.findOne({ name: updatedOrder.userName });
+    
     if (user && user.pushToken && Expo.isExpoPushToken(user.pushToken)) {
       let messages = [{
         to: user.pushToken,
         sound: 'default',
         title: "Freddy's Pizza Update 🍕",
         body: `Ang status ng iyong order ay: ${status}`,
-        data: { orderId: updatedOrder._id },
+        data: { 
+            orderId: updatedOrder._id,
+            status: status // Kailangan ito para sa MyOrders tab switching
+        },
       }];
       let chunks = expo.chunkPushNotifications(messages);
       for (let chunk of chunks) await expo.sendPushNotificationsAsync(chunk);

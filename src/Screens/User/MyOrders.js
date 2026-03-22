@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, FlatList, ScrollView, RefreshControl, Alert, StyleSheet } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native'; 
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native'; 
 import { Card, Chip, Button, ActivityIndicator, PaperProvider, SegmentedButtons } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios'; 
@@ -8,6 +8,7 @@ import { BASE_URL } from '../../../config';
 
 const MyOrders = () => {
   const navigation = useNavigation();
+  const route = useRoute(); // Para makuha ang data mula sa notification click
   const [orders, setOrders] = useState([]);
   const [userReviews, setUserReviews] = useState([]); 
   const [filteredOrders, setFilteredOrders] = useState([]);
@@ -16,15 +17,19 @@ const MyOrders = () => {
   const [statusTab, setStatusTab] = useState('Pending'); 
   const [userData, setUserData] = useState(null);
 
-  // 1. Function para makuha ang User Data, Orders, at Reviews sabay-sabay
+  // Deep Link Logic: I-set ang tab base sa pinadalang status ng notification
+  useEffect(() => {
+    if (route.params?.status) {
+      setStatusTab(route.params.status);
+    }
+  }, [route.params?.status]);
+
   const getUserData = async () => {
     try {
       const user = await AsyncStorage.getItem('user');
       if (user) {
         const parsedUser = JSON.parse(user);
         setUserData(parsedUser);
-        
-        // Parallel fetching para mas mabilis
         await Promise.all([
           fetchUserOrders(parsedUser.name),
           fetchUserReviews(parsedUser._id)
@@ -56,14 +61,12 @@ const MyOrders = () => {
     }
   };
 
-  // 2. Refresh logic kapag binalikan ang screen na ito
   useFocusEffect(
     useCallback(() => {
       getUserData();
     }, [])
   );
 
-  // 3. Filter orders base sa napiling tab
   useEffect(() => {
     const filtered = orders.filter(order => order.status === statusTab);
     setFilteredOrders(filtered);
@@ -103,8 +106,6 @@ const MyOrders = () => {
         <View style={styles.itemsList}>
           {item.items.map((pizza, index) => {
             const idToReview = pizza.productId || pizza._id;
-            
-            // Hanapin kung may existing review na ang user para sa product na ito
             const existingReview = userReviews.find(rev => rev.productId === idToReview);
 
             return (
@@ -120,7 +121,7 @@ const MyOrders = () => {
                     compact 
                     onPress={() => {
                       if (!userData?._id) {
-                          Alert.alert("Notice", "Please login again to continue.");
+                          Alert.alert("Notice", "Please login again.");
                           return;
                       }
                       navigation.navigate("ProductReview", { 
@@ -128,18 +129,11 @@ const MyOrders = () => {
                         userId: userData?._id, 
                         userName: userData?.name,
                         productName: pizza.name,
-                        existingReview: existingReview // Ipapasa ang object para sa Edit logic
+                        existingReview: existingReview 
                       });
                     }}
-                    style={[
-                      styles.reviewBtn, 
-                      existingReview && styles.editBtnOutline
-                    ]}
-                    labelStyle={{ 
-                      fontSize: 10, 
-                      fontWeight: 'bold',
-                      color: existingReview ? '#e61e1e' : '#fff' 
-                    }}
+                    style={[styles.reviewBtn, existingReview && styles.editBtnOutline]}
+                    labelStyle={{ fontSize: 10, fontWeight: 'bold', color: existingReview ? '#e61e1e' : '#fff' }}
                   >
                     {existingReview ? 'Edit' : 'Rate'}
                   </Button>
