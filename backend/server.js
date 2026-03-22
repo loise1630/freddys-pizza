@@ -27,7 +27,9 @@ const userSchema = new mongoose.Schema({
   phone: { type: String, default: "" },
   address: { type: String, default: "" },
   isAdmin: { type: Boolean, default: false },
-  pushToken: { type: String, default: "" } 
+  pushToken: { type: String, default: "" },
+  googleId: { type: String, default: "" }, // Dagdag para sa Google Login
+  image: { type: String, default: "" }    // Dagdag para sa Profile Pic
 });
 const User = mongoose.model('User', userSchema);
 
@@ -56,53 +58,80 @@ const orderSchema = new mongoose.Schema({
 });
 const Order = mongoose.model('Order', orderSchema);
 
-// --- IMPORT EXTERNAL ROUTES ---
-// Siguraduhin na ang review.js ay nasa backend/routes/ folder
+// --- EXTERNAL ROUTES ---
 const reviewRoutes = require('./routes/review');
 app.use('/api/reviews', reviewRoutes);
 
 // --- ROUTES ---
 
-// 1. AUTHENTICATION
+// 1. AUTHENTICATION (Manual Register)
 app.post('/api/users/register', async (req, res) => {
   try {
     const { name, email, password, phone, address } = req.body;
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ email: email.toLowerCase() });
     if (user) return res.status(400).json({ message: "User already exists!" });
     
-    user = new User({ name, email, password, phone: phone || "", address: address || "" });
+    user = new User({ 
+        name, 
+        email: email.toLowerCase(), 
+        password, 
+        phone: phone || "", 
+        address: address || "" 
+    });
     await user.save();
     res.status(201).json({ message: "Registration Successful!" });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+// 2. MANUAL LOGIN
 app.post('/api/users/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email, password });
+    const user = await User.findOne({ email: email.toLowerCase(), password });
     if (!user) return res.status(400).json({ message: "Invalid credentials" });
-    res.json({ user });
+    res.json(user); // Inalis ang { user } wrap para mag-match sa frontend logic mo
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// 2. PRODUCTS MANAGEMENT
+// 3. GOOGLE LOGIN (ITO ANG SOLUSYON SA RATING ERROR)
+app.post('/api/users/google-login', async (req, res) => {
+  try {
+    const { email, name, googleId, image } = req.body;
+    let user = await User.findOne({ email: email.toLowerCase() });
+
+    if (user) {
+      // Kung may user na, ibalik ang data (kasama ang _id na kailangan sa Rating)
+      res.json(user);
+    } else {
+      // Kung wala pa, gawan ng record sa database
+      const newUser = new User({
+        name,
+        email: email.toLowerCase(),
+        googleId,
+        image,
+        isAdmin: false,
+        password: Math.random().toString(36).slice(-8) // Random password for schema requirement
+      });
+      const savedUser = await newUser.save();
+      res.status(201).json(savedUser);
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 4. PRODUCTS MANAGEMENT
 app.get('/api/products', async (req, res) => {
   try {
     const { search, category, minPrice, maxPrice } = req.query;
     let query = {};
-
-    if (search && search.trim() !== "") {
-      query.name = { $regex: search, $options: 'i' }; 
-    }
-    if (category && category !== 'All') {
-      query.category = category;
-    }
+    if (search && search.trim() !== "") query.name = { $regex: search, $options: 'i' }; 
+    if (category && category !== 'All') query.category = category;
     if (minPrice || maxPrice) {
       query.price = {};
       if (minPrice) query.price.$gte = Number(minPrice); 
       if (maxPrice) query.price.$lte = Number(maxPrice);
     }
-
     const products = await Product.find(query).sort({ _id: -1 });
     res.json(products);
   } catch (error) { res.status(500).json({ error: error.message }); }
@@ -117,32 +146,22 @@ app.post('/api/products', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// 3. ORDERS MANAGEMENT
-
-// POST: Create Order (Mula sa Checkout.js)
+// 5. ORDERS MANAGEMENT
 app.post('/api/orders', async (req, res) => {
   try {
-    console.log("📥 New Order Received:", req.body.userName);
     const newOrder = new Order(req.body);
     await newOrder.save();
     res.status(201).json(newOrder);
-  } catch (error) { 
-    console.error("❌ Order Error:", error.message);
-    res.status(500).json({ error: error.message }); 
-  }
+  } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// GET: Specific User Orders (ITO YUNG KULANG MO KAYA MAY 404 ERROR)
 app.get('/api/orders/user/:name', async (req, res) => {
   try {
     const orders = await Order.find({ userName: req.params.name }).sort({ createdAt: -1 });
     res.json(orders);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// GET: All orders (Admin use)
 app.get('/api/orders', async (req, res) => {
   try {
     const orders = await Order.find().sort({ createdAt: -1 });
@@ -150,13 +169,11 @@ app.get('/api/orders', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// 4. ORDER STATUS UPDATE (With Push Notification)
+// 6. ORDER STATUS & PUSH NOTIFICATIONS
 app.put('/api/orders/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
     const updatedOrder = await Order.findByIdAndUpdate(req.params.id, { status }, { new: true });
-    
-    // Push Notification Logic
     const user = await User.findOne({ name: updatedOrder.userName });
     if (user && user.pushToken && Expo.isExpoPushToken(user.pushToken)) {
       let messages = [{
@@ -167,9 +184,7 @@ app.put('/api/orders/:id/status', async (req, res) => {
         data: { orderId: updatedOrder._id },
       }];
       let chunks = expo.chunkPushNotifications(messages);
-      for (let chunk of chunks) {
-        await expo.sendPushNotificationsAsync(chunk);
-      }
+      for (let chunk of chunks) await expo.sendPushNotificationsAsync(chunk);
     }
     res.json(updatedOrder);
   } catch (error) { res.status(500).json({ error: error.message }); }

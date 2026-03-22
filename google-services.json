@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "837994144432",
+    "project_id": "pizzeria-e6d97",
+    "storage_bucket": "pizzeria-e6d97.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:837994144432:android:7faa8f68fd335e43091175",
+        "android_client_info": {
+          "package_name": "com.freddys.pizza"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "837994144432-hm8vrr2v8ohqk737rtmej1fj07h8nog6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCmapAej5vCTAwRmNpKsB237F_1YdziP_Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "837994144432-hm8vrr2v8ohqk737rtmej1fj07h8nog6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

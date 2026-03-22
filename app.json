@@ -1,10 +1,41 @@
 {
   "expo": {
     "name": "freddys-pizza",
-    "slug": "freddys-pizza",
+    "slug": "freddys-pizza-v2",
     "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.freddys.pizza",
+      "googleServicesFile": "./google-services.json",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": {
+      "favicon": "./assets/icon.png"
+    },
     "plugins": [
-      "expo-sqlite"
-    ]
+      "expo-sqlite",
+      "@react-native-google-signin/google-signin"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "378f0130-fd29-4c53-9121-0fa61ef05754"
+      }
+    }
   }
 }
