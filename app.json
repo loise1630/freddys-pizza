@@ -6,17 +6,21 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+
     "splash": {
       "image": "./assets/icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+
     "assetBundlePatterns": [
       "**/*"
     ],
+
     "ios": {
       "supportsTablet": true
     },
+
     "android": {
       "package": "com.freddys.pizza",
       "googleServicesFile": "./google-services.json",
@@ -25,14 +29,16 @@
         "backgroundColor": "#ffffff"
       }
     },
+
     "web": {
       "favicon": "./assets/icon.png"
     },
+
     "plugins": [
       "expo-sqlite",
-      "@react-native-google-signin/google-signin",
       "expo-secure-store"
     ],
+
     "extra": {
       "eas": {
         "projectId": "378f0130-fd29-4c53-9121-0fa61ef05754"
