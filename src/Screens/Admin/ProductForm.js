@@ -1,5 +1,8 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ScrollView, Image, StatusBar, Platform } from "react-native";
+import { 
+  View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, 
+  ScrollView, Image, StatusBar, Platform, Dimensions 
+} from "react-native";
 import * as ImagePicker from 'expo-image-picker';
 import axios from "axios";
 import { BASE_URL } from "../../../config";
@@ -9,22 +12,53 @@ const CATEGORIES = ["Pizza", "Drinks", "Sides"];
 const ProductForm = ({ navigation }) => {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
+  const [stock, setStock] = useState(""); // <-- Bagong state para sa Stock
   const [description, setDescription] = useState("");
   const [images, setImages] = useState([]);
   const [category, setCategory] = useState("Pizza");
+  const [loading, setLoading] = useState(false);
 
   const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, quality: 0.4 });
+    const result = await ImagePicker.launchImageLibraryAsync({ 
+      mediaTypes: ['images'], 
+      allowsMultipleSelection: true, 
+      quality: 0.4 
+    });
     if (!result.canceled) setImages([...images, ...result.assets.map(a => a.uri)]);
   };
 
   const handleSubmit = async () => {
-    if (!name || !price || !description) return Alert.alert("Error", "Please fill in all text fields");
-    if (!images.length) return Alert.alert("Photo Required", "Please add at least one photo 🍕");
+    // Validation: Kasama na ang stock sa check
+    if (!name || !price || !description || !stock) {
+      return Alert.alert("Error", "Please fill in all text fields including Stock");
+    }
+    if (!images.length) {
+      return Alert.alert("Photo Required", "Please add at least one photo 🍕");
+    }
+
+    setLoading(true);
     try {
-      const { status } = await axios.post(`${BASE_URL}/api/products`, { name, price: Number(price), description, category, images });
-      if (status === 201) { Alert.alert("Success", `${name} added to ${category}! 🍕`); navigation.navigate("AdminDashboard"); }
-    } catch (e) { Alert.alert("Error", "Failed to save product."); }
+      const payload = { 
+        name, 
+        price: Number(price), 
+        stock: Number(stock), // <-- Ipinapadala sa Backend
+        description, 
+        category, 
+        images 
+      };
+
+      const { status } = await axios.post(`${BASE_URL}/api/products`, payload);
+      
+      if (status === 201) { 
+        Alert.alert("Success", `${name} added to inventory! 🍕`); 
+        navigation.goBack(); // Babalik sa ManageProducts para ma-refresh ang listahan
+      }
+    } catch (e) { 
+      console.error(e);
+      Alert.alert("Error", "Failed to save product. Check your server."); 
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -38,40 +72,95 @@ const ProductForm = ({ navigation }) => {
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={s.headerTitle}>Add New Product</Text>
-          <Text style={s.headerSub}>Fill in the product details</Text>
+          <Text style={s.headerSub}>Inventory Management</Text>
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={s.body}>
-        <TextInput style={s.input} value={name} onChangeText={setName} placeholder="Product Name" placeholderTextColor="#bbb" />
-        <TextInput style={s.input} value={price} onChangeText={setPrice} placeholder="Price" keyboardType="numeric" placeholderTextColor="#bbb" />
+      <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
+        {/* Product Name */}
+        <Text style={s.label}>Product Name</Text>
+        <TextInput 
+          style={s.input} 
+          value={name} 
+          onChangeText={setName} 
+          placeholder="e.g. Pepperoni Feast" 
+          placeholderTextColor="#bbb" 
+        />
 
+        {/* Price and Stock Row */}
+        <View style={s.row}>
+          <View style={{ flex: 1, marginRight: 10 }}>
+            <Text style={s.label}>Price (₱)</Text>
+            <TextInput 
+              style={s.input} 
+              value={price} 
+              onChangeText={setPrice} 
+              placeholder="0.00" 
+              keyboardType="numeric" 
+              placeholderTextColor="#bbb" 
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.label}>Stock Quantity</Text>
+            <TextInput 
+              style={s.input} 
+              value={stock} 
+              onChangeText={setStock} 
+              placeholder="0" 
+              keyboardType="numeric" 
+              placeholderTextColor="#bbb" 
+            />
+          </View>
+        </View>
+
+        {/* Category Selection */}
         <Text style={s.label}>Category</Text>
         <View style={s.categoryRow}>
           {CATEGORIES.map((cat) => (
-            <TouchableOpacity key={cat} style={[s.catBtn, category === cat && s.activeCatBtn]} onPress={() => setCategory(cat)}>
+            <TouchableOpacity 
+              key={cat} 
+              style={[s.catBtn, category === cat && s.activeCatBtn]} 
+              onPress={() => setCategory(cat)}
+            >
               <Text style={[s.catText, category === cat && { color: '#fff' }]}>{cat}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        <TextInput style={[s.input, { height: 80 }]} value={description} onChangeText={setDescription}
-          placeholder="Description" multiline placeholderTextColor="#bbb" />
+        {/* Description */}
+        <Text style={s.label}>Description</Text>
+        <TextInput 
+          style={[s.input, { height: 100, textAlignVertical: 'top' }]} 
+          value={description} 
+          onChangeText={setDescription}
+          placeholder="Write something delicious about this product..." 
+          multiline 
+          placeholderTextColor="#bbb" 
+        />
 
+        {/* Image Uploader */}
         <Text style={s.label}>Photos ({images.length})</Text>
         <View style={s.imageContainer}>
           {images.map((uri, i) => (
             <TouchableOpacity key={i} onPress={() => setImages(images.filter((_, j) => j !== i))}>
               <Image source={{ uri }} style={s.thumbnail} />
+              <View style={s.deleteBadge}><Text style={s.deleteText}>×</Text></View>
             </TouchableOpacity>
           ))}
           <TouchableOpacity style={s.addBtn} onPress={pickImage}>
             <Text style={s.addBtnText}>+</Text>
+            <Text style={{ fontSize: 10, color: '#999' }}>Add Photo</Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={s.saveBtn} onPress={handleSubmit} activeOpacity={0.85}>
-          <Text style={s.saveBtnText}>Save Product</Text>
+        {/* Save Button */}
+        <TouchableOpacity 
+          style={[s.saveBtn, loading && { opacity: 0.7 }]} 
+          onPress={handleSubmit} 
+          disabled={loading}
+          activeOpacity={0.85}
+        >
+          <Text style={s.saveBtnText}>{loading ? "Saving..." : "Save Product"}</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -83,30 +172,49 @@ const s = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#FF6B35',
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 12 : 54,
-    paddingBottom: 18, paddingHorizontal: 20,
+    paddingBottom: 20, paddingHorizontal: 20,
     borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
   },
-  backBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-  backIcon: { color: '#fff', fontSize: 20, fontWeight: '700', marginTop: -2 },
-  headerTitle: { color: '#fff', fontSize: 22, fontWeight: '800', letterSpacing: -0.3 },
-  headerSub: { color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '500', marginTop: 1 },
+  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  backIcon: { color: '#fff', fontSize: 22, fontWeight: '700' },
+  headerTitle: { color: '#fff', fontSize: 22, fontWeight: '800' },
+  headerSub: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 1 },
 
-  body: { padding: 20 },
-  input: { backgroundColor: '#fff', padding: 14, borderRadius: 12, marginBottom: 14, borderWidth: 1.5, borderColor: '#E8E8E8', color: '#1A1A1A', fontSize: 14 },
-  label: { fontSize: 13, fontWeight: '700', color: '#555', marginBottom: 8 },
-  categoryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, gap: 8 },
-  catBtn: { flex: 1, padding: 10, backgroundColor: '#fff', borderRadius: 10, alignItems: 'center', borderWidth: 1.5, borderColor: '#E8E8E8' },
+  body: { padding: 20, paddingBottom: 40 },
+  label: { fontSize: 14, fontWeight: '700', color: '#444', marginBottom: 8, marginLeft: 4 },
+  input: { 
+    backgroundColor: '#fff', padding: 14, borderRadius: 15, marginBottom: 18, 
+    borderWidth: 1.5, borderColor: '#EEE', color: '#1A1A1A', fontSize: 15 
+  },
+  row: { flexDirection: 'row', justifyContent: 'space-between' },
+  
+  categoryRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  catBtn: { 
+    flex: 1, padding: 12, backgroundColor: '#fff', borderRadius: 12, 
+    alignItems: 'center', borderWidth: 1.5, borderColor: '#EEE' 
+  },
   activeCatBtn: { backgroundColor: '#FF6B35', borderColor: '#FF6B35' },
   catText: { fontWeight: '700', color: '#666', fontSize: 13 },
-  imageContainer: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 20, gap: 10 },
-  thumbnail: { width: 70, height: 70, borderRadius: 10 },
-  addBtn: { width: 70, height: 70, borderRadius: 10, backgroundColor: '#F0F0F0', justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#aaa' },
-  addBtnText: { fontSize: 30, color: '#999' },
-  saveBtn: {
-    backgroundColor: '#FF6B35', padding: 16, borderRadius: 16, alignItems: 'center',
-    elevation: 4, shadowColor: '#FF6B35', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 8,
+
+  imageContainer: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 30, gap: 12 },
+  thumbnail: { width: 75, height: 75, borderRadius: 15, borderWidth: 1, borderColor: '#DDD' },
+  deleteBadge: { 
+    position: 'absolute', top: -5, right: -5, backgroundColor: '#FF6B35', 
+    width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' 
   },
-  saveBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  deleteText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+  
+  addBtn: { 
+    width: 75, height: 75, borderRadius: 15, backgroundColor: '#F0F0F0', 
+    justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#BBB' 
+  },
+  addBtnText: { fontSize: 28, color: '#AAA', marginBottom: -5 },
+
+  saveBtn: {
+    backgroundColor: '#FF6B35', padding: 18, borderRadius: 18, alignItems: 'center',
+    elevation: 4, shadowColor: '#FF6B35', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8,
+  },
+  saveBtnText: { color: '#fff', fontWeight: '800', fontSize: 17 },
 });
 
 export default ProductForm;

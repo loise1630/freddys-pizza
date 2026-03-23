@@ -19,7 +19,7 @@ router.put('/:id/status', async (req, res) => {
     try {
         const { status } = req.body;
         
-        // 1. Update status at i-populate ang user
+        // eto Update status at i-populate ang user
         const order = await Order.findByIdAndUpdate(
             req.params.id, 
             { status: status }, 
@@ -35,7 +35,7 @@ router.put('/:id/status', async (req, res) => {
             let messages = [{
                 to: user.pushToken,
                 sound: 'default',
-                title: "Freddy's Pizza Update 🍕",
+                title: "Freddy's Pizza Update",
                 body: `Order status: ${status}`,
                 data: { orderId: order._id }, 
             }];

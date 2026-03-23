@@ -26,7 +26,8 @@ const userSchema = new mongoose.Schema({
   phone: { type: String, default: "" },
   address: { type: String, default: "" },
   isAdmin: { type: Boolean, default: false },
-  pushToken: { type: String, default: "" }, // Requirement: Token saved on model (10pts)
+  isActive: { type: Boolean, default: true }, 
+  pushToken: { type: String, default: "" },
   googleId: { type: String, default: "" }, 
   image: { type: String, default: "" }    
 });
@@ -37,7 +38,8 @@ const productSchema = new mongoose.Schema({
   price: { type: Number, required: true },
   description: { type: String, required: true },
   category: { type: String, default: "Pizza" }, 
-  images: { type: [String], required: true } 
+  images: { type: [String], required: true },
+  stock: { type: Number, default: 0 } // ✅ Added Stock field
 });
 const Product = mongoose.model('Product', productSchema);
 
@@ -63,54 +65,14 @@ app.use('/api/reviews', reviewRoutes);
 
 // --- ROUTES ---
 
-/**
- * 1. UPDATE PUSH TOKEN (Unit 2 Requirements - 10pts)
- * Tinatawag ito tuwing maglo-login ang user sa Mobile App.
- */
-app.post('/api/users/update-push-token', async (req, res) => {
-  try {
-    const { userId, pushToken } = req.body;
-    
-    console.log("--- PUSH TOKEN SYNC ATTEMPT ---");
-    console.log(`User ID: ${userId}`);
-    console.log(`Token: ${pushToken || "NO TOKEN RECEIVED"}`);
-
-    const updatedUser = await User.findByIdAndUpdate(
-      userId, 
-      { pushToken: pushToken || "" }, 
-      { new: true }
-    );
-
-    if (updatedUser) {
-      console.log(`✅ Success: Token saved for ${updatedUser.name}`);
-      res.json({ message: "Push token updated on user model!", user: updatedUser.name });
-    } else {
-      res.status(404).json({ message: "User not found" });
-    }
-  } catch (error) { 
-    console.error("Push Token Error:", error.message);
-    res.status(500).json({ error: error.message }); 
-  }
-});
-
-// 2. AUTHENTICATION (Manual & Google)
-app.post('/api/users/register', async (req, res) => {
-  try {
-    const { name, email, password, phone, address } = req.body;
-    let user = await User.findOne({ email: email.toLowerCase() });
-    if (user) return res.status(400).json({ message: "User na ito ay exist na!" });
-    user = new User({ name, email: email.toLowerCase(), password, phone, address });
-    await user.save();
-    res.status(201).json({ message: "Registration Successful!" });
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
+// 1. USER AUTH & MANAGEMENT
 app.post('/api/users/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email: email.toLowerCase(), password });
-    if (!user) return res.status(400).json({ message: "Maling email o password!" });
-    res.json(user); 
+    if (!user) return res.status(400).json({ message: "Wrong credentials" });
+    if (!user.isActive) return res.status(403).json({ message: "Account is deactivated" });
+    res.json(user);
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
@@ -118,31 +80,96 @@ app.post('/api/users/google-login', async (req, res) => {
   try {
     const { email, name, googleId, image } = req.body;
     let user = await User.findOne({ email: email.toLowerCase() });
+
     if (user) {
-      res.json(user);
+      if (!user.isActive) return res.status(403).json({ message: "Account is deactivated" });
+      user.googleId = googleId;
+      if (image) user.image = image;
+      await user.save();
     } else {
-      const newUser = new User({
-        name, email: email.toLowerCase(), googleId, image, isAdmin: false,
-        password: Math.random().toString(36).slice(-8) 
+      user = new User({
+        name,
+        email: email.toLowerCase(),
+        googleId,
+        image,
+        password: Math.random().toString(36).slice(-10),
+        isActive: true,
+        isAdmin: false
       });
-      const savedUser = await newUser.save();
-      res.status(201).json(savedUser);
+      await user.save();
     }
+    res.json(user);
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// 3. PRODUCTS MANAGEMENT
+app.post('/api/users/register', async (req, res) => {
+  try {
+    const { name, email, password, phone, address } = req.body;
+    let user = await User.findOne({ email: email.toLowerCase() });
+    if (user) return res.status(400).json({ message: "User exists" });
+    user = new User({ name, email: email.toLowerCase(), password, phone, address });
+    await user.save();
+    res.status(201).json({ message: "Registered!" });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.get('/api/users', async (req, res) => {
+  try {
+    const users = await User.find().sort({ name: 1 });
+    res.json(users);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.put('/api/users/:id/status', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    user.isActive = !user.isActive;
+    await user.save();
+    res.json(user);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.put('/api/users/:id/role', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    user.isAdmin = !user.isAdmin;
+    await user.save();
+    res.json(user);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/users/update-push-token', async (req, res) => {
+  try {
+    const { userId, pushToken } = req.body;
+    const updatedUser = await User.findByIdAndUpdate(userId, { pushToken: pushToken || "" }, { new: true });
+    res.json({ message: "Token updated", user: updatedUser?.name });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// 2. PRODUCTS (CRUD + STOCK + UPDATED PRICE FILTER)
 app.get('/api/products', async (req, res) => {
   try {
-    const { search, category, minPrice, maxPrice } = req.query;
+    const { search, category, minPrice, maxPrice } = req.query; // ✅ Binabasa na ang min/max price
+    
     let query = {};
-    if (search) query.name = { $regex: search, $options: 'i' }; 
-    if (category && category !== 'All') query.category = category;
+
+    // Filter by Search Name
+    if (search) {
+      query.name = { $regex: search, $options: 'i' };
+    }
+
+    // Filter by Category
+    if (category && category !== 'All') {
+      query.category = category;
+    }
+
+    // ✅ Filter by Price Range Logic
     if (minPrice || maxPrice) {
       query.price = {};
-      if (minPrice) query.price.$gte = Number(minPrice); 
+      if (minPrice) query.price.$gte = Number(minPrice);
       if (maxPrice) query.price.$lte = Number(maxPrice);
     }
+
     const products = await Product.find(query).sort({ _id: -1 });
     res.json(products);
   } catch (error) { res.status(500).json({ error: error.message }); }
@@ -156,19 +183,30 @@ app.post('/api/products', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// 4. ORDERS MANAGEMENT
+app.put('/api/products/:id', async (req, res) => {
+  try {
+    const updatedProduct = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json(updatedProduct);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.delete('/api/products/:id', async (req, res) => {
+  try {
+    await Product.findByIdAndDelete(req.params.id);
+    res.json({ message: "Product deleted successfully" });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// 3. ORDERS (STOCK REDUCTION)
 app.post('/api/orders', async (req, res) => {
   try {
     const newOrder = new Order(req.body);
     await newOrder.save();
-    res.status(201).json(newOrder);
-  } catch (error) { res.status(500).json({ error: error.message }); }
-});
 
-app.get('/api/orders/user/:name', async (req, res) => {
-  try {
-    const orders = await Order.find({ userName: req.params.name }).sort({ createdAt: -1 });
-    res.json(orders);
+    for (const item of req.body.items) {
+      await Product.findByIdAndUpdate(item.productId, { $inc: { stock: -item.quantity } });
+    }
+    res.status(201).json(newOrder);
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
@@ -179,47 +217,37 @@ app.get('/api/orders', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-/**
- * 5. ORDER STATUS & STALE TOKEN REMOVAL (Final 20pts Logic)
- * Kapag in-update ng Admin ang status, magpapadala ng Push Notification.
- */
+app.get('/api/orders/user/:name', async (req, res) => {
+  try {
+    const orders = await Order.find({ userName: req.params.name }).sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
 app.put('/api/orders/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
     const updatedOrder = await Order.findByIdAndUpdate(req.params.id, { status }, { new: true });
     
-    // Hanapin ang user na may-ari ng order para makuha ang pushToken
     const user = await User.findOne({ name: updatedOrder.userName });
-    
     if (user && user.pushToken && Expo.isExpoPushToken(user.pushToken)) {
-      console.log(`Sending notification to ${user.name}...`);
-      
       let messages = [{
         to: user.pushToken,
         sound: 'default',
         title: "Freddy's Pizza Update 🍕",
         body: `Ang status ng iyong order ay: ${status}`,
-        data: { orderId: updatedOrder._id, status: status },
+        data: { orderId: updatedOrder._id, status },
       }];
-      
       let chunks = expo.chunkPushNotifications(messages);
       for (let chunk of chunks) {
-        try {
-          let tickets = await expo.sendPushNotificationsAsync(chunk);
-          
-          // Requirement: Check for stale tokens (DeviceNotRegistered)
-          for (let ticket of tickets) {
-            if (ticket.status === 'error' && ticket.details?.error === 'DeviceNotRegistered') {
-              console.log(`⚠️ Removing stale token for user: ${user.name}`);
-              await User.findByIdAndUpdate(user._id, { pushToken: "" });
-            }
+        let tickets = await expo.sendPushNotificationsAsync(chunk);
+        for (let ticket of tickets) {
+          if (ticket.status === 'error' && ticket.details?.error === 'DeviceNotRegistered') {
+            await User.findByIdAndUpdate(user._id, { pushToken: "" });
           }
-        } catch (e) { console.error("Notification Error:", e); }
+        }
       }
-    } else {
-      console.log("No valid push token found for this user. Skipping notification.");
     }
-    
     res.json(updatedOrder);
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
@@ -228,5 +256,4 @@ app.put('/api/orders/:id/status', async (req, res) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT} 🚀`);
-  console.log(`Ready for push notifications and MongoDB sync!`);
 });

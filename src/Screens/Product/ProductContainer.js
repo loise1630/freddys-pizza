@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   StyleSheet, View, ActivityIndicator, Image, TouchableOpacity,
-  FlatList, ScrollView, StatusBar, Dimensions, Platform
+  FlatList, ScrollView, StatusBar, Dimensions, Platform, TextInput
 } from 'react-native';
-import { Text, Searchbar, Modal, Portal, PaperProvider, Divider, Menu, IconButton } from 'react-native-paper';
+import { Text, Searchbar, Modal, Portal, PaperProvider, Divider, Menu } from 'react-native-paper';
 import axios from 'axios';
 import { BASE_URL } from '../../../config';
 import { useDispatch, useSelector } from 'react-redux';
@@ -23,14 +23,19 @@ const ProductContainer = ({ navigation }) => {
   const [productReviews, setProductReviews] = useState([]);
   const [fetchingReviews, setFetchingReviews] = useState(false);
   
-  // State for the Profile Menu Dropdown
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
   const [menuVisible, setMenuVisible] = useState(false);
 
   const dispatch = useDispatch();
   const cartItems = useSelector((state) => state.cartItems?.cartItems || []);
   const cartCount = cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
 
-  useEffect(() => { fetchPizzas(); }, [searchQuery, selectedCategory]);
+  useEffect(() => { 
+    const delayDebounceFn = setTimeout(() => { fetchPizzas(); }, 500);
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery, selectedCategory, minPrice, maxPrice]);
+
   useEffect(() => {
     if (selectedProduct?._id && visible) fetchProductReviews(selectedProduct._id);
   }, [selectedProduct, visible]);
@@ -39,14 +44,15 @@ const ProductContainer = ({ navigation }) => {
     try {
       setLoading(true);
       const { data } = await axios.get(`${BASE_URL}/api/products`, {
-        params: { search: searchQuery, category: selectedCategory }
+        params: { 
+          search: searchQuery, 
+          category: selectedCategory,
+          minPrice: minPrice || 0,
+          maxPrice: maxPrice || 999999
+        }
       });
       setPizzas(data);
-    } catch (e) {
-      console.error('Fetch Products Error:', e);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
   const fetchProductReviews = async (id) => {
@@ -54,11 +60,7 @@ const ProductContainer = ({ navigation }) => {
       setFetchingReviews(true);
       const { data } = await axios.get(`${BASE_URL}/api/reviews/product/${id}`);
       setProductReviews(data);
-    } catch {
-      setProductReviews([]);
-    } finally {
-      setFetchingReviews(false);
-    }
+    } catch { setProductReviews([]); } finally { setFetchingReviews(false); }
   };
 
   const addToCart = (item) => {
@@ -67,8 +69,6 @@ const ProductContainer = ({ navigation }) => {
   };
 
   const closeModal = () => { setVisible(false); setProductReviews([]); };
-  const openMenu = () => setMenuVisible(true);
-  const closeMenu = () => setMenuVisible(false);
 
   const renderItem = ({ item }) => (
     <TouchableOpacity style={s.card} onPress={() => { setSelectedProduct(item); setVisible(true); }} activeOpacity={0.92}>
@@ -93,128 +93,105 @@ const ProductContainer = ({ navigation }) => {
     <PaperProvider>
       <StatusBar backgroundColor="#FF6B35" barStyle="light-content" />
       <View style={s.container}>
-
-        {/* --- CUSTOM HEADER WITH DROPDOWN --- */}
+        {/* Header Section */}
         <View style={s.header}>
           <View>
             <Text style={s.headerGreeting}>Good day! 👋</Text>
             <Text style={s.headerTitle}>Freddy's Pizza 🍕</Text>
           </View>
-          
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {/* Cart Button */}
             <TouchableOpacity style={s.cartBtn} onPress={() => navigation?.navigate('Cart')}>
               <Text style={{ fontSize: 20 }}>🛒</Text>
-              {cartCount > 0 && (
-                <View style={s.cartBadge}><Text style={s.cartBadgeText}>{cartCount}</Text></View>
-              )}
+              {cartCount > 0 && <View style={s.cartBadge}><Text style={s.cartBadgeText}>{cartCount}</Text></View>}
             </TouchableOpacity>
-
-            {/* Profile Dropdown Menu */}
             <Menu
               visible={menuVisible}
-              onDismiss={closeMenu}
-              anchor={
-                <TouchableOpacity style={[s.cartBtn, { marginLeft: 10 }]} onPress={openMenu}>
-                  <Text style={{ fontSize: 20 }}>👤</Text>
-                </TouchableOpacity>
-              }
+              onDismiss={() => setMenuVisible(false)}
+              anchor={<TouchableOpacity style={[s.cartBtn, { marginLeft: 10 }]} onPress={() => setMenuVisible(true)}><Text style={{ fontSize: 20 }}>👤</Text></TouchableOpacity>}
               contentStyle={{ backgroundColor: '#fff', borderRadius: 12 }}
             >
-              <Menu.Item 
-                onPress={() => { closeMenu(); navigation.navigate('UserProfile'); }} 
-                title="My Profile" 
-                leadingIcon="account" 
-              />
+              <Menu.Item onPress={() => { setMenuVisible(false); navigation.navigate('UserProfile'); }} title="My Profile" leadingIcon="account" />
               <Divider />
-              <Menu.Item 
-                onPress={() => { closeMenu(); navigation.navigate('MyOrders'); }} 
-                title="My Orders" 
-                leadingIcon="clipboard-list" 
-              />
+              <Menu.Item onPress={() => { setMenuVisible(false); navigation.navigate('MyOrders'); }} title="My Orders" leadingIcon="clipboard-list" />
               <Divider />
-              <Menu.Item 
-                onPress={() => { closeMenu(); navigation.navigate('Login'); }} 
-                title="Logout" 
-                leadingIcon="logout" 
-                titleStyle={{ color: '#e61e1e' }}
-              />
+              <Menu.Item onPress={() => { setMenuVisible(false); navigation.navigate('Login'); }} title="Logout" leadingIcon="logout" titleStyle={{ color: '#e61e1e' }} />
             </Menu>
           </View>
         </View>
 
-        {/* Search */}
-        <View style={s.searchWrapper}>
-          <Searchbar
-            placeholder="Search deliciousness..."
-            onChangeText={setSearchQuery}
-            value={searchQuery}
-            style={s.search}
-            inputStyle={{ fontSize: 14, color: '#222' }}
-            iconColor="#FF6B35"
-            placeholderTextColor="#aaa"
-          />
+        {/* Filters Section */}
+        <View style={s.filterContainer}>
+          <Searchbar placeholder="Search pizza..." onChangeText={setSearchQuery} value={searchQuery} style={s.search} inputStyle={{ fontSize: 14 }} iconColor="#FF6B35" />
+          <View style={s.priceRangeRow}>
+            <View style={s.priceInputWrap}>
+              <Text style={s.priceLabel}>Min Price</Text>
+              <TextInput style={s.priceInput} placeholder="₱ 0" keyboardType="numeric" value={minPrice} onChangeText={setMinPrice} />
+            </View>
+            <View style={s.priceInputWrap}>
+              <Text style={s.priceLabel}>Max Price</Text>
+              <TextInput style={s.priceInput} placeholder="₱ 1000+" keyboardType="numeric" value={maxPrice} onChangeText={setMaxPrice} />
+            </View>
+            {(minPrice !== '' || maxPrice !== '') && (
+              <TouchableOpacity onPress={() => { setMinPrice(''); setMaxPrice(''); }} style={s.clearBtn}><Text style={s.clearBtnTxt}>Reset</Text></TouchableOpacity>
+            )}
+          </View>
         </View>
 
-        {/* Categories */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }} contentContainerStyle={s.categoryContent}>
-          {CATEGORIES.map((cat) => (
-            <TouchableOpacity key={cat} onPress={() => setSelectedCategory(cat)}
-              style={[s.catChip, selectedCategory === cat && s.activeCat]} activeOpacity={0.8}>
-              <Text style={[s.catText, selectedCategory === cat && { color: '#fff' }]}>{cat}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {/* Categories Section */}
+        <View style={{ height: 50 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.categoryContent}>
+            {CATEGORIES.map((cat) => (
+              <TouchableOpacity key={cat} onPress={() => setSelectedCategory(cat)} style={[s.catChip, selectedCategory === cat && s.activeCat]}>
+                <Text style={[s.catText, selectedCategory === cat && { color: '#eb5555' }]}>{cat}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
 
-        {/* Section Label */}
+        {/* List Section */}
         <View style={s.sectionRow}>
           <Text style={s.sectionLabel}>{selectedCategory === 'All' ? 'Menu' : selectedCategory}</Text>
-          <Text style={s.sectionCount}>{pizzas.length} items found</Text>
+          <Text style={s.sectionCount}>{pizzas.length} items</Text>
         </View>
 
-        {/* Grid List */}
         {loading ? (
-          <View style={s.loaderWrap}>
-            <ActivityIndicator size="large" color="#FF6B35" />
-            <Text style={s.loadingText}>Loading menu...</Text>
-          </View>
+          <View style={s.loaderWrap}><ActivityIndicator size="large" color="#FF6B35" /></View>
         ) : (
-          <FlatList
-            data={pizzas}
-            keyExtractor={(item) => item._id}
-            renderItem={renderItem}
-            numColumns={2}
-            contentContainerStyle={s.listContainer}
-            columnWrapperStyle={s.columnWrapper}
-            showsVerticalScrollIndicator={false}
-          />
+          <FlatList data={pizzas} keyExtractor={(item) => item._id} renderItem={renderItem} numColumns={2} contentContainerStyle={s.listContainer} columnWrapperStyle={s.columnWrapper} />
         )}
 
-        {/* Product Modal */}
+        {/* Product Modal with Reviews */}
         <Portal>
           <Modal visible={visible} onDismiss={closeModal} contentContainerStyle={s.modalOverlay}>
             {selectedProduct && (
               <View style={s.modalCard}>
-                <Image source={{ uri: selectedProduct.images?.[0] }} style={s.modalImage} resizeMode="cover" />
-                <TouchableOpacity style={s.modalClose} onPress={closeModal}>
-                  <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>✕</Text>
-                </TouchableOpacity>
-
+                <Image source={{ uri: selectedProduct.images?.[0] }} style={s.modalImage} />
+                <TouchableOpacity style={s.modalClose} onPress={closeModal}><Text style={{ color: '#fff' }}>✕</Text></TouchableOpacity>
+                
                 <ScrollView style={s.modalBody} showsVerticalScrollIndicator={false}>
                   <Text style={s.modalTitle}>{selectedProduct.name}</Text>
                   <Text style={s.modalDesc}>{selectedProduct.description}</Text>
-
-                  <TouchableOpacity style={s.addToCartBtn} onPress={() => { addToCart(selectedProduct); closeModal(); }} activeOpacity={0.85}>
+                  
+                  <TouchableOpacity style={s.addToCartBtn} onPress={() => { addToCart(selectedProduct); closeModal(); }}>
                     <Text style={s.addToCartText}>Add to Cart — ₱{selectedProduct.price.toFixed(2)}</Text>
                   </TouchableOpacity>
 
-                  <Text style={s.reviewTitle}>Reviews</Text>
-                  {fetchingReviews ? <ActivityIndicator color="#FF6B35" /> : productReviews.map((rev, i) => (
-                    <View key={i} style={{ marginBottom: 12 }}>
-                      <Text style={s.reviewUser}>{rev.userName} {'⭐'.repeat(rev.rating)}</Text>
-                      <Text style={s.reviewText}>{rev.comment}</Text>
-                    </View>
-                  ))}
+                  {/* ✅ REVIEWS SECTION RE-ADDED */}
+                  <Divider style={{ marginVertical: 15 }} />
+                  <Text style={s.reviewTitle}>Customer Reviews</Text>
+                  {fetchingReviews ? (
+                    <ActivityIndicator color="#FF6B35" style={{ marginVertical: 10 }} />
+                  ) : productReviews.length > 0 ? (
+                    productReviews.map((rev, i) => (
+                      <View key={i} style={s.reviewItem}>
+                        <Text style={s.reviewUser}>{rev.userName} <Text style={{color: '#FFD700'}}>{'⭐'.repeat(rev.rating)}</Text></Text>
+                        <Text style={s.reviewText}>{rev.comment}</Text>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={s.noReviews}>No reviews yet for this product. 🍕</Text>
+                  )}
+                  <View style={{ height: 30 }} /> 
                 </ScrollView>
               </View>
             )}
@@ -228,60 +205,58 @@ const ProductContainer = ({ navigation }) => {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FAFAFA' },
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#FF6B35',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FF6B35',
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 12 : 54,
-    paddingBottom: 18, paddingHorizontal: 20,
-    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
+    paddingBottom: 18, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
   },
-  headerGreeting: { color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: '500' },
+  headerGreeting: { color: 'rgba(255,255,255,0.85)', fontSize: 12 },
   headerTitle: { color: '#fff', fontSize: 20, fontWeight: '800' },
-  cartBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center',
-  },
-  cartBadge: {
-    position: 'absolute', top: 2, right: 2,
-    backgroundColor: '#FFD700', borderRadius: 9, minWidth: 18, height: 18,
-    justifyContent: 'center', alignItems: 'center',
-  },
+  cartBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  cartBadge: { position: 'absolute', top: 2, right: 2, backgroundColor: '#FFD700', borderRadius: 9, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center' },
   cartBadgeText: { color: '#222', fontSize: 10, fontWeight: '800' },
-  searchWrapper: { paddingHorizontal: 16, paddingTop: 16 },
-  search: { borderRadius: 12, backgroundColor: '#fff', elevation: 2 },
-  categoryContent: { paddingHorizontal: 16 },
+  filterContainer: { paddingHorizontal: 16, paddingTop: 16, gap: 10 },
+  search: { borderRadius: 12, backgroundColor: '#fff', elevation: 2, height: 45 },
+  priceRangeRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
+  priceInputWrap: { flex: 1 },
+  priceLabel: { fontSize: 10, fontWeight: '700', color: '#888', marginBottom: 4 },
+  priceInput: { backgroundColor: '#fff', borderRadius: 10, height: 38, paddingHorizontal: 10, borderWidth: 1, borderColor: '#eee', fontSize: 12 },
+  clearBtn: { paddingBottom: 10 },
+  clearBtnTxt: { color: '#FF6B35', fontSize: 12, fontWeight: '700' },
+  categoryContent: { paddingHorizontal: 16, alignItems: 'center' },
   catChip: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20, backgroundColor: '#fff', marginRight: 8, borderWidth: 1, borderColor: '#eee' },
   activeCat: { backgroundColor: '#FF6B35', borderColor: '#FF6B35' },
   catText: { color: '#666', fontWeight: '600', fontSize: 13 },
-  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, marginTop: 16 },
-  sectionLabel: { fontSize: 18, fontWeight: '800', color: '#1A1A1A' },
+  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, marginTop: 10 },
+  sectionLabel: { fontSize: 18, fontWeight: '800' },
   sectionCount: { fontSize: 12, color: '#999' },
   listContainer: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 20 },
   columnWrapper: { gap: 12, marginBottom: 12 },
   card: { width: CARD_WIDTH, backgroundColor: '#fff', borderRadius: 16, elevation: 3, overflow: 'hidden' },
-  pizzaImage: { width: '100%', height: 120 },
+  pizzaImage: { width: '100%', height: 110 },
   cardBody: { padding: 10 },
-  pizzaName: { fontWeight: '700', fontSize: 14 },
-  pizzaDesc: { color: '#999', fontSize: 11, marginVertical: 4 },
+  pizzaName: { fontWeight: '700', fontSize: 13 },
+  pizzaDesc: { color: '#999', fontSize: 10, marginVertical: 4 },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  pizzaPrice: { color: '#FF6B35', fontWeight: '800', fontSize: 14 },
-  addBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#FF6B35', justifyContent: 'center', alignItems: 'center' },
-  addBtnText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+  pizzaPrice: { color: '#FF6B35', fontWeight: '800', fontSize: 13 },
+  addBtn: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#FF6B35', justifyContent: 'center', alignItems: 'center' },
+  addBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   newBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: '#FF6B35', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
-  newBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800' },
-  loaderWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { marginTop: 10, color: '#FF6B35', fontWeight: '600' },
+  newBadgeText: { color: '#fff', fontSize: 8, fontWeight: '800' },
+  loaderWrap: { flex: 1, justifyContent: 'center' },
   modalOverlay: { flex: 1, justifyContent: 'flex-end', margin: 0 },
   modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden', maxHeight: '90%' },
-  modalImage: { width: '100%', height: 250 },
+  modalImage: { width: '100%', height: 220 },
   modalClose: { position: 'absolute', top: 15, right: 15, backgroundColor: 'rgba(0,0,0,0.5)', width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
   modalBody: { padding: 20 },
-  modalTitle: { fontSize: 24, fontWeight: '800', color: '#1A1A1A' },
-  modalDesc: { color: '#666', lineHeight: 22, marginVertical: 15 },
-  addToCartBtn: { backgroundColor: '#FF6B35', borderRadius: 12, paddingVertical: 15, alignItems: 'center', marginBottom: 20 },
-  addToCartText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  reviewTitle: { fontSize: 18, fontWeight: '800', marginBottom: 10 },
+  modalTitle: { fontSize: 22, fontWeight: '800', color: '#1A1A1A' },
+  modalDesc: { color: '#666', marginVertical: 12, lineHeight: 18 },
+  addToCartBtn: { backgroundColor: '#FF6B35', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  addToCartText: { color: '#fff', fontWeight: '800' },
+  reviewTitle: { fontSize: 18, fontWeight: '800', marginBottom: 12 },
+  reviewItem: { marginBottom: 12, backgroundColor: '#F9F9F9', padding: 10, borderRadius: 10 },
   reviewUser: { fontWeight: '700', fontSize: 14 },
-  reviewText: { color: '#555', fontSize: 13, marginTop: 4 }
+  reviewText: { color: '#555', fontSize: 13, marginTop: 2 },
+  noReviews: { color: '#999', fontStyle: 'italic', textAlign: 'center', marginVertical: 10 }
 });
 
 export default ProductContainer;

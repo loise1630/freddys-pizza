@@ -50,7 +50,7 @@ router.post('/add', async (req, res) => {
 });
 
 // 2. GET: Fetch reviews para sa isang specific product
-// Ito yung tinatawag ng ProductContainer modal para makita ng lahat ng users
+// 
 router.get('/product/:productId', async (req, res) => {
     try {
         const reviews = await Review.find({ productId: req.params.productId })
