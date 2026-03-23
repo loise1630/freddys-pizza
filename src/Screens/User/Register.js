@@ -1,105 +1,138 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert } from "react-native";
-import axios from 'axios'; 
-import { BASE_URL } from "../../../config"; 
+import {
+  View, Text, TextInput, StyleSheet, TouchableOpacity,
+  ScrollView, Alert, KeyboardAvoidingView, Platform,
+} from "react-native";
+import axios from "axios";
+import { BASE_URL } from "../../../config";
 
-const Register = (props) => {
+const Register = ({ navigation }) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [agreed, setAgreed] = useState(false);
 
   const handleRegister = async () => {
-    if (name === "" || email === "" || password === "") {
-      Alert.alert("Error", "Please fill in all fields");
-      return; 
-    }
-
+    if (!name || !email || !password) return Alert.alert("Error", "Please fill in all fields");
+    if (!agreed) return Alert.alert("Terms", "Please agree to the Terms & Conditions");
     try {
-      // FIX: Dinagdagan ng /api/ sa URL
-      const response = await axios.post(`${BASE_URL}/api/users/register`, {
-        name: name,
-        email: email.toLowerCase().trim(),
-        password: password,
-        phone: phone 
+      const { status } = await axios.post(`${BASE_URL}/api/users/register`, {
+        name, email: email.toLowerCase().trim(), password, phone,
       });
-
-      if (response.status === 201) {
-        Alert.alert("Success", "Account created successfully! 🍕");
-        props.navigation.navigate("Login");
+      if (status === 201) {
+        Alert.alert("Success", "Account created! 🍕");
+        navigation.navigate("Login");
       }
     } catch (error) {
-      console.log("Register Error Details:", error.response?.data || error.message);
-      Alert.alert(
-        "Registration Failed", 
-        error.response?.data?.message || "Something went wrong."
-      );
+      Alert.alert("Registration Failed", error.response?.data?.message || "Something went wrong.");
     }
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Create Account 🍕</Text>
-      
-      <View style={styles.inputView}>
-        <TextInput
-          style={styles.inputText}
-          placeholder="Full Name..."
-          placeholderTextColor="#003f5c"
-          onChangeText={(text) => setName(text)}
-        />
-      </View>
+    <KeyboardAvoidingView style={s.root} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <View style={s.topBar} />
 
-      <View style={styles.inputView}>
-        <TextInput
-          style={styles.inputText}
-          placeholder="Email..."
-          placeholderTextColor="#003f5c"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          onChangeText={(text) => setEmail(text)}
-        />
-      </View>
+        <View style={s.headerWrap}>
+          <Text style={s.heading}>Register &</Text>
+          <Text style={[s.heading, s.headingAccent]}>Get Started!</Text>
+        </View>
 
-      <View style={styles.inputView}>
-        <TextInput
-          style={styles.inputText}
-          placeholder="Phone Number..."
-          placeholderTextColor="#003f5c"
-          keyboardType="numeric"
-          onChangeText={(text) => setPhone(text)}
-        />
-      </View>
+        {[
+          { label: "Full Name", value: name, setter: setName, placeholder: "Juan Dela Cruz" },
+          { label: "Email Address", value: email, setter: setEmail, placeholder: "mail@mail.com", keyboardType: "email-address", autoCapitalize: "none" },
+          { label: "Phone Number", value: phone, setter: setPhone, placeholder: "09xx xxx xxxx", keyboardType: "numeric" },
+        ].map(({ label, value, setter, placeholder, ...rest }) => (
+          <View key={label} style={s.field}>
+            <Text style={s.label}>{label}</Text>
+            <TextInput style={s.input} placeholder={placeholder} placeholderTextColor="#bbb"
+              value={value} onChangeText={setter} {...rest} />
+          </View>
+        ))}
 
-      <View style={styles.inputView}>
-        <TextInput
-          secureTextEntry
-          style={styles.inputText}
-          placeholder="Password..."
-          placeholderTextColor="#003f5c"
-          onChangeText={(text) => setPassword(text)}
-        />
-      </View>
+        <View style={s.field}>
+          <Text style={s.label}>Create Password</Text>
+          <View style={s.passRow}>
+            <TextInput style={[s.input, { flex: 1 }]} placeholder="••••••••" placeholderTextColor="#bbb"
+              secureTextEntry={!showPass} value={password} onChangeText={setPassword} />
+            <TouchableOpacity onPress={() => setShowPass(!showPass)} style={s.eyeBtn}>
+              <Text style={s.eyeTxt}>{showPass ? "🙈" : "👁"}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
-      <TouchableOpacity style={styles.registerBtn} onPress={handleRegister}>
-        <Text style={styles.text}>REGISTER</Text>
-      </TouchableOpacity>
+        <TouchableOpacity style={s.termsRow} onPress={() => setAgreed(!agreed)} activeOpacity={0.7}>
+          <View style={[s.checkbox, agreed && s.checkboxOn]}>
+            {agreed && <Text style={s.checkMark}>✓</Text>}
+          </View>
+          <Text style={s.termsTxt}>By Clicking Register, I agree with <Text style={s.termsLink}>Terms & Conditions</Text></Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => props.navigation.navigate("Login")}>
-        <Text style={styles.actionsText}>Already have an account? Login</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <TouchableOpacity style={s.primaryBtn} onPress={handleRegister} activeOpacity={0.85}>
+          <Text style={s.primaryBtnTxt}>Register</Text>
+        </TouchableOpacity>
+
+        <View style={s.divider}>
+          <View style={s.divLine} /><Text style={s.divTxt}>or</Text><View style={s.divLine} />
+        </View>
+
+        <TouchableOpacity style={[s.socialBtn, { marginBottom: 10 }]}>
+          <Text style={s.socialIcon}>f</Text><Text style={s.socialTxt}>Register with Facebook</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={s.socialBtn}>
+          <Text style={s.socialIcon}>G</Text><Text style={s.socialTxt}>Register with Google</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => navigation.navigate("Login")} style={s.footerWrap}>
+          <Text style={s.footerTxt}>Already have an account? <Text style={s.footerLink}>Login</Text></Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flexGrow: 1, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", paddingVertical: 50 },
-  title: { fontWeight: "bold", fontSize: 35, color: "#e61e1e", marginBottom: 40 },
-  inputView: { width: "80%", backgroundColor: "#f2f2f2", borderRadius: 25, height: 50, marginBottom: 20, justifyContent: "center", padding: 20 },
-  inputText: { height: 50, color: "black" },
-  registerBtn: { width: "80%", backgroundColor: "#e61e1e", borderRadius: 25, height: 50, alignItems: "center", justifyContent: "center", marginTop: 20, marginBottom: 10 },
-  text: { color: "white", fontWeight: "bold" },
-  actionsText: { color: "#003f5c", marginTop: 15 },
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: "#fff" },
+  topBar: { height: 5, backgroundColor: "#E8441A", borderBottomLeftRadius: 4, borderBottomRightRadius: 4, marginBottom: 32 },
+  container: { paddingHorizontal: 28, paddingBottom: 40 },
+
+  headerWrap: { marginBottom: 26 },
+  heading: { fontSize: 26, fontWeight: "700", color: "#1a1a1a", lineHeight: 32 },
+  headingAccent: { color: "#E8441A" },
+
+  field: { marginBottom: 16 },
+  label: { fontSize: 12, fontWeight: "600", color: "#555", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
+  input: { borderWidth: 1.5, borderColor: "#e8e8e8", borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, color: "#1a1a1a", backgroundColor: "#fafafa" },
+  passRow: { flexDirection: "row", alignItems: "center" },
+  eyeBtn: { position: "absolute", right: 12 },
+  eyeTxt: { fontSize: 16 },
+
+  termsRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 20, marginTop: 4 },
+  checkbox: { width: 18, height: 18, borderWidth: 1.5, borderColor: "#ccc", borderRadius: 4, marginRight: 10, alignItems: "center", justifyContent: "center", marginTop: 1 },
+  checkboxOn: { backgroundColor: "#E8441A", borderColor: "#E8441A" },
+  checkMark: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  termsTxt: { fontSize: 12, color: "#888", flex: 1, lineHeight: 18 },
+  termsLink: { color: "#E8441A", fontWeight: "600" },
+
+  primaryBtn: {
+    backgroundColor: "#E8441A", borderRadius: 12, paddingVertical: 14, alignItems: "center",
+    shadowColor: "#E8441A", shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5,
+  },
+  primaryBtnTxt: { color: "#fff", fontWeight: "700", fontSize: 15, letterSpacing: 0.5 },
+
+  divider: { flexDirection: "row", alignItems: "center", marginVertical: 20 },
+  divLine: { flex: 1, height: 1, backgroundColor: "#ebebeb" },
+  divTxt: { marginHorizontal: 12, color: "#aaa", fontSize: 12 },
+
+  socialBtn: { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderColor: "#e8e8e8", borderRadius: 12, paddingVertical: 12, paddingHorizontal: 18, backgroundColor: "#fafafa" },
+  socialIcon: { fontSize: 15, fontWeight: "800", color: "#333", width: 22 },
+  socialTxt: { fontSize: 13, color: "#333", fontWeight: "500" },
+
+  footerWrap: { alignItems: "center", marginTop: 24 },
+  footerTxt: { fontSize: 13, color: "#888" },
+  footerLink: { color: "#E8441A", fontWeight: "700" },
 });
 
 export default Register;

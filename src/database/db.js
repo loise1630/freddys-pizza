@@ -27,8 +27,8 @@ export const addToCartSql = (item) => {
         1, 
         item.images && item.images.length > 0 ? item.images[0] : ''
       ]
-    );
-    console.log("SQLITE: Item saved! 🍕");
+    )
+    console.log("SQLITE: Item saved!");
   } catch (error) { 
     console.log("SQLITE SAVE ERROR:", error); 
   }

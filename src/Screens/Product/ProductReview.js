@@ -99,7 +99,7 @@ const ProductReview = () => {
       />
 
       {loading ? (
-        <ActivityIndicator size="large" color="#e61e1e" />
+        <ActivityIndicator size="large" color="#FF6B35" />
       ) : (
         <TouchableOpacity style={styles.submitBtn} onPress={submitReview}>
           <Text style={styles.submitBtnText}>
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     color: '#000'
   },
   submitBtn: {
-    backgroundColor: '#e61e1e',
+    backgroundColor: '#FF6B35',
     padding: 18,
     borderRadius: 12,
     alignItems: 'center',
