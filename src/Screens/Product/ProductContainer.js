@@ -22,6 +22,7 @@ const ProductContainer = ({ navigation }) => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [productReviews, setProductReviews] = useState([]);
   const [fetchingReviews, setFetchingReviews] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0); 
   
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
@@ -64,36 +65,68 @@ const ProductContainer = ({ navigation }) => {
   };
 
   const addToCart = (item) => {
+    if (item.stock <= 0) return;
     dispatch({ type: 'ADD_TO_CART', payload: item });
     try { addToCartSql(item); } catch (e) { console.log(e); }
   };
 
-  const closeModal = () => { setVisible(false); setProductReviews([]); };
+  const closeModal = () => { 
+    setVisible(false); 
+    setProductReviews([]); 
+    setActiveIndex(0); 
+  };
 
-  const renderItem = ({ item }) => (
-    <TouchableOpacity style={s.card} onPress={() => { setSelectedProduct(item); setVisible(true); }} activeOpacity={0.92}>
-      <View>
-        <Image source={{ uri: item.images?.[0] || 'https://via.placeholder.com/150' }} style={s.pizzaImage} resizeMode="cover" />
-        {item.isNew && <View style={s.newBadge}><Text style={s.newBadgeText}>NEW</Text></View>}
-      </View>
-      <View style={s.cardBody}>
-        <Text style={s.pizzaName} numberOfLines={2}>{item.name}</Text>
-        <Text style={s.pizzaDesc} numberOfLines={1}>{item.description}</Text>
-        <View style={s.cardFooter}>
-          <Text style={s.pizzaPrice}>₱{item.price.toFixed(2)}</Text>
-          <TouchableOpacity style={s.addBtn} onPress={() => addToCart(item)} activeOpacity={0.8}>
-            <Text style={s.addBtnText}>+</Text>
-          </TouchableOpacity>
+  const handleScroll = (event) => {
+    const scrollPosition = event.nativeEvent.contentOffset.x;
+    const index = Math.round(scrollPosition / width);
+    setActiveIndex(index);
+  };
+
+  const renderItem = ({ item }) => {
+    // Dynamic Sold Out logic: If stock > 0, it is NOT sold out.
+    const isSoldOut = item.stock <= 0;
+    
+    return (
+      <TouchableOpacity 
+        style={[s.card, isSoldOut && { opacity: 0.85 }]} 
+        onPress={() => { setSelectedProduct(item); setVisible(true); }} 
+        activeOpacity={0.92}
+      >
+        <View>
+          <Image 
+            source={{ uri: item.images?.[0] || 'https://via.placeholder.com/150' }} 
+            style={[s.pizzaImage, isSoldOut && { opacity: 0.6 }]} 
+            resizeMode="cover" 
+          />
+          {item.isNew && !isSoldOut && <View style={s.newBadge}><Text style={s.newBadgeText}>NEW</Text></View>}
+          {isSoldOut && (
+            <View style={s.soldOutBadge}>
+              <Text style={s.soldOutText}>OUT OF STOCK</Text>
+            </View>
+          )}
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+        <View style={s.cardBody}>
+          <Text style={[s.pizzaName, isSoldOut && { color: '#888' }]} numberOfLines={2}>{item.name}</Text>
+          <Text style={s.pizzaDesc} numberOfLines={1}>{item.description}</Text>
+          <View style={s.cardFooter}>
+            <Text style={s.pizzaPrice}>₱{item.price.toFixed(2)}</Text>
+            <TouchableOpacity 
+              style={[s.addBtn, isSoldOut && { backgroundColor: '#bdc3c7' }]} 
+              onPress={() => addToCart(item)} 
+              disabled={isSoldOut}
+            >
+              <Text style={s.addBtnText}>{isSoldOut ? '✕' : '+'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <PaperProvider>
       <StatusBar backgroundColor="#FF6B35" barStyle="light-content" />
       <View style={s.container}>
-        {/* Header Section */}
         <View style={s.header}>
           <View>
             <Text style={s.headerGreeting}>Good day! 👋</Text>
@@ -119,7 +152,6 @@ const ProductContainer = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Filters Section */}
         <View style={s.filterContainer}>
           <Searchbar placeholder="Search pizza..." onChangeText={setSearchQuery} value={searchQuery} style={s.search} inputStyle={{ fontSize: 14 }} iconColor="#FF6B35" />
           <View style={s.priceRangeRow}>
@@ -137,18 +169,16 @@ const ProductContainer = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Categories Section */}
         <View style={{ height: 50 }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.categoryContent}>
             {CATEGORIES.map((cat) => (
               <TouchableOpacity key={cat} onPress={() => setSelectedCategory(cat)} style={[s.catChip, selectedCategory === cat && s.activeCat]}>
-                <Text style={[s.catText, selectedCategory === cat && { color: '#eb5555' }]}>{cat}</Text>
+                <Text style={[s.catText, selectedCategory === cat && { color: '#fff' }]}>{cat}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
         </View>
 
-        {/* List Section */}
         <View style={s.sectionRow}>
           <Text style={s.sectionLabel}>{selectedCategory === 'All' ? 'Menu' : selectedCategory}</Text>
           <Text style={s.sectionCount}>{pizzas.length} items</Text>
@@ -160,37 +190,52 @@ const ProductContainer = ({ navigation }) => {
           <FlatList data={pizzas} keyExtractor={(item) => item._id} renderItem={renderItem} numColumns={2} contentContainerStyle={s.listContainer} columnWrapperStyle={s.columnWrapper} />
         )}
 
-        {/* Product Modal with Reviews */}
         <Portal>
           <Modal visible={visible} onDismiss={closeModal} contentContainerStyle={s.modalOverlay}>
             {selectedProduct && (
               <View style={s.modalCard}>
-                <Image source={{ uri: selectedProduct.images?.[0] }} style={s.modalImage} />
-                <TouchableOpacity style={s.modalClose} onPress={closeModal}><Text style={{ color: '#fff' }}>✕</Text></TouchableOpacity>
+                <View style={s.carouselContainer}>
+                  <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onScroll={handleScroll} scrollEventThrottle={16}>
+                    {selectedProduct.images?.map((img, index) => (
+                      <Image key={index} source={{ uri: img }} style={s.modalImage} />
+                    ))}
+                  </ScrollView>
+                  <View style={s.pagination}>
+                    {selectedProduct.images?.map((_, index) => (
+                      <View key={index} style={[s.dot, activeIndex === index ? s.activeDot : s.inactiveDot]} />
+                    ))}
+                  </View>
+                  <TouchableOpacity style={s.modalClose} onPress={closeModal}><Text style={{ color: '#fff' }}>✕</Text></TouchableOpacity>
+                </View>
                 
                 <ScrollView style={s.modalBody} showsVerticalScrollIndicator={false}>
-                  <Text style={s.modalTitle}>{selectedProduct.name}</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                     <Text style={s.modalTitle}>{selectedProduct.name}</Text>
+                     <Text style={[s.stockText, { color: selectedProduct.stock > 0 ? '#2ecc71' : '#e74c3c' }]}>
+                        {selectedProduct.stock > 0 ? `${selectedProduct.stock} in stock` : 'Out of stock'}
+                     </Text>
+                  </View>
                   <Text style={s.modalDesc}>{selectedProduct.description}</Text>
                   
-                  <TouchableOpacity style={s.addToCartBtn} onPress={() => { addToCart(selectedProduct); closeModal(); }}>
-                    <Text style={s.addToCartText}>Add to Cart — ₱{selectedProduct.price.toFixed(2)}</Text>
-                  </TouchableOpacity>
-
-                  {/* ✅ REVIEWS SECTION RE-ADDED */}
+                  {selectedProduct.stock > 0 ? (
+                    <TouchableOpacity style={s.addToCartBtn} onPress={() => { addToCart(selectedProduct); closeModal(); }}>
+                      <Text style={s.addToCartText}>Add to Cart — ₱{selectedProduct.price.toFixed(2)}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={[s.addToCartBtn, { backgroundColor: '#bdc3c7' }]}>
+                      <Text style={s.addToCartText}>Sold Out</Text>
+                    </View>
+                  )}
                   <Divider style={{ marginVertical: 15 }} />
                   <Text style={s.reviewTitle}>Customer Reviews</Text>
-                  {fetchingReviews ? (
-                    <ActivityIndicator color="#FF6B35" style={{ marginVertical: 10 }} />
-                  ) : productReviews.length > 0 ? (
+                  {fetchingReviews ? <ActivityIndicator color="#FF6B35" /> : productReviews.length > 0 ? (
                     productReviews.map((rev, i) => (
                       <View key={i} style={s.reviewItem}>
                         <Text style={s.reviewUser}>{rev.userName} <Text style={{color: '#FFD700'}}>{'⭐'.repeat(rev.rating)}</Text></Text>
                         <Text style={s.reviewText}>{rev.comment}</Text>
                       </View>
                     ))
-                  ) : (
-                    <Text style={s.noReviews}>No reviews yet for this product. 🍕</Text>
-                  )}
+                  ) : <Text style={s.noReviews}>No reviews yet for this product. 🍕</Text>}
                   <View style={{ height: 30 }} /> 
                 </ScrollView>
               </View>
@@ -242,13 +287,21 @@ const s = StyleSheet.create({
   addBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
   newBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: '#FF6B35', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
   newBadgeText: { color: '#fff', fontSize: 8, fontWeight: '800' },
+  soldOutBadge: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
+  soldOutText: { color: '#fff', fontWeight: '900', fontSize: 10, backgroundColor: '#e74c3c', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
   loaderWrap: { flex: 1, justifyContent: 'center' },
   modalOverlay: { flex: 1, justifyContent: 'flex-end', margin: 0 },
   modalCard: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden', maxHeight: '90%' },
-  modalImage: { width: '100%', height: 220 },
+  carouselContainer: { width: '100%', height: 250 },
+  modalImage: { width: width, height: 250 },
+  pagination: { position: 'absolute', bottom: 15, flexDirection: 'row', width: '100%', justifyContent: 'center', alignItems: 'center' },
+  dot: { width: 8, height: 8, borderRadius: 4, marginHorizontal: 4 },
+  activeDot: { backgroundColor: '#FF6B35', width: 20 },
+  inactiveDot: { backgroundColor: 'rgba(255,255,255,0.5)' },
   modalClose: { position: 'absolute', top: 15, right: 15, backgroundColor: 'rgba(0,0,0,0.5)', width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
   modalBody: { padding: 20 },
   modalTitle: { fontSize: 22, fontWeight: '800', color: '#1A1A1A' },
+  stockText: { fontSize: 12, fontWeight: '700' },
   modalDesc: { color: '#666', marginVertical: 12, lineHeight: 18 },
   addToCartBtn: { backgroundColor: '#FF6B35', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   addToCartText: { color: '#fff', fontWeight: '800' },

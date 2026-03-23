@@ -40,9 +40,14 @@ const UserProfile = () => {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.5,
+      quality: 0.4,
+      base64: true, // get base64 so it can be saved to DB
     });
-    if (!result.canceled) setPhoto(result.assets[0].uri);
+    if (!result.canceled) {
+      const asset = result.assets[0];
+      // base64 data URI works both as <Image source> and as DB value
+      setPhoto(`data:image/jpeg;base64,${asset.base64}`);
+    }
   };
 
   const handleUpdate = async () => {
@@ -51,13 +56,13 @@ const UserProfile = () => {
     try {
       const payload = {
         ...form,
-        image: photo,
+        image: photo || '', // base64 data URI or existing saved URL
         ...(password.trim() && { password: password.trim() }),
       };
       const { data } = await axios.put(`${BASE_URL}/api/users/${user._id}`, payload);
       dispatch({ type: 'UPDATE_USER', payload: data });
       setForm({ name: data.name, phone: data.phone ?? '', address: data.address ?? '' });
-      setPhoto(data.image || null);
+      setPhoto(data.image || null); // reset to saved string from DB
       const stored = await AsyncStorage.getItem('user');
       if (stored) await AsyncStorage.setItem('user', JSON.stringify({ ...JSON.parse(stored), ...data }));
       Alert.alert('Success! 🎉', 'Profile updated.');
@@ -75,7 +80,7 @@ const UserProfile = () => {
         {/* Profile Photo */}
         <TouchableOpacity onPress={isEditing ? pickPhoto : null} style={s.avatarWrap} activeOpacity={isEditing ? 0.8 : 1}>
           {photo ? (
-            <Image source={{ uri: photo }} style={s.avatarImg} />
+            <Image source={{ uri: photo?.uri || photo }} style={s.avatarImg} />
           ) : (
             <View style={s.avatarPlaceholder}>
               <Text style={s.avatarInitial}>{user?.name?.charAt(0)?.toUpperCase() || '?'}</Text>

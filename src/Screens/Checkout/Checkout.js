@@ -11,20 +11,52 @@ const Checkout = ({ navigation }) => {
   const dispatch = useDispatch();
   const cartItems = useSelector(state => state.cartItems.cartItems);
   const user = useSelector(state => state.cartItems.user);
+  
   const totalPrice = cartItems.reduce((acc, item) => acc + item.price * (item.quantity || 1), 0);
 
   const confirmOrder = async () => {
+    // 1. Check kung may laman ang cart
     if (!cartItems.length) return Alert.alert('Empty Cart', 'Magdagdag muna ng pizza sa cart!');
+
+    // 2. STOCK VALIDATION: Bawal i-checkout ang zero stock o kulang ang stock
+    const outOfStockItems = cartItems.filter(item => (item.stock <= 0 || item.quantity > item.stock));
+    
+    if (outOfStockItems.length > 0) {
+      const names = outOfStockItems.map(i => i.name).join(', ');
+      return Alert.alert(
+        'Out of Stock 🚫',
+        `Ang mga sumusunod ay wala nang sapat na stock: ${names}. Pakibawasan o alisin sila sa cart.`,
+        [{ text: 'Bumalik sa Cart', onPress: () => navigation.goBack() }]
+      );
+    }
+
+    // 3. ADDRESS VALIDATION: Check if address exists in profile
+    if (!user?.address || user.address.trim() === "") {
+      return Alert.alert(
+        'Missing Address',
+        'Please set your address.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Go to Profile', onPress: () => navigation.navigate('UserProfile') }
+        ]
+      );
+    }
+
     setLoading(true);
     try {
       const res = await axios.post(`${BASE_URL}/api/orders`, {
         userName: user?.name || 'Guest',
+        userAddress: user?.address, 
         items: cartItems.map(({ productId, _id, name, price, quantity }) => ({
-          productId: productId || _id, name, price, quantity: quantity || 1
+          productId: productId || _id, 
+          name, 
+          price, 
+          quantity: quantity || 1
         })),
         totalAmount: totalPrice,
         status: 'Pending'
       });
+
       if (res.status === 201) {
         clearCartSql();
         dispatch({ type: 'CLEAR_CART' });
@@ -65,20 +97,48 @@ const Checkout = ({ navigation }) => {
           </Text>
         </View>
 
-        {/* Order Items */}
+        {/* Main Card: Order Summary & Address */}
         <View style={s.card}>
           <Text style={s.cardTitle}>Order Summary 📝</Text>
           <Divider style={s.divider} />
-          {cartItems.map((item, i) => (
-            <View key={i} style={s.itemRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={s.itemName}>{item.name}</Text>
-                <Text style={s.itemQty}>x{item.quantity || 1}</Text>
-              </View>
-              <Text style={s.itemPrice}>₱{(item.price * (item.quantity || 1)).toFixed(2)}</Text>
+
+          {/* Address Section */}
+          <View style={s.addressContainer}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={s.sectionLabel}>Delivery Address 📍</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('UserProfile')}>
+                <Text style={s.editLink}>Edit</Text>
+              </TouchableOpacity>
             </View>
-          ))}
+            {user?.address ? (
+              <Text style={s.addressText}>{user.address}</Text>
+            ) : (
+              <Text style={s.noAddressText}>⚠️ Please set your address in Profile.</Text>
+            )}
+          </View>
+
           <Divider style={s.divider} />
+
+          {/* Items List with Stock Warning */}
+          {cartItems.map((item, i) => {
+            const noStock = item.stock <= 0 || item.quantity > item.stock;
+            return (
+              <View key={i} style={s.itemRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.itemName, noStock && { color: '#e74c3c' }]}>
+                    {item.name} {noStock && '(Out of Stock!)'}
+                  </Text>
+                  <Text style={s.itemQty}>x{item.quantity || 1}</Text>
+                </View>
+                <Text style={[s.itemPrice, noStock && { textDecorationLine: 'line-through', color: '#bdc3c7' }]}>
+                  ₱{(item.price * (item.quantity || 1)).toFixed(2)}
+                </Text>
+              </View>
+            );
+          })}
+
+          <Divider style={s.divider} />
+          
           <View style={s.summaryRow}>
             <Text style={s.summaryLabel}>Subtotal</Text>
             <Text style={s.summaryValue}>₱{totalPrice.toFixed(2)}</Text>
@@ -87,9 +147,11 @@ const Checkout = ({ navigation }) => {
             <Text style={s.summaryLabel}>Delivery Fee</Text>
             <Text style={[s.summaryValue, { color: '#4CAF50' }]}>FREE</Text>
           </View>
+          
           <Divider style={s.divider} />
+          
           <View style={s.summaryRow}>
-            <Text style={s.totalLabel}>Total</Text>
+            <Text style={s.totalLabel}>Total Amount</Text>
             <Text style={s.totalPrice}>₱{totalPrice.toFixed(2)}</Text>
           </View>
         </View>
@@ -100,8 +162,15 @@ const Checkout = ({ navigation }) => {
         {loading ? (
           <ActivityIndicator size="large" color="#FF6B35" style={{ flex: 1 }} />
         ) : (
-          <TouchableOpacity style={s.confirmBtn} onPress={confirmOrder} activeOpacity={0.85}>
-            <Text style={s.confirmText}>✓  Confirm Order</Text>
+          <TouchableOpacity 
+            style={[
+              s.confirmBtn, 
+              (!user?.address || cartItems.some(item => item.stock <= 0)) && { backgroundColor: '#bdc3c7' }
+            ]} 
+            onPress={confirmOrder} 
+            activeOpacity={0.85}
+          >
+            <Text style={s.confirmText}>✓ Confirm Order</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -111,7 +180,6 @@ const Checkout = ({ navigation }) => {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FAFAFA' },
-
   header: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#FF6B35',
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 12 : 54,
@@ -120,11 +188,9 @@ const s = StyleSheet.create({
   },
   backBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
   backIcon: { color: '#fff', fontSize: 20, fontWeight: '700', marginTop: -2 },
-  headerTitle: { color: '#fff', fontSize: 22, fontWeight: '800', letterSpacing: -0.3 },
-  headerSub: { color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '500', marginTop: 1 },
-
+  headerTitle: { color: '#fff', fontSize: 22, fontWeight: '800' },
+  headerSub: { color: 'rgba(255,255,255,0.8)', fontSize: 13 },
   scroll: { padding: 16, paddingBottom: 30 },
-
   customerTag: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF0EB',
     padding: 12, borderRadius: 14, gap: 8, marginBottom: 14,
@@ -132,36 +198,36 @@ const s = StyleSheet.create({
   customerIcon: { fontSize: 16 },
   customerText: { fontSize: 13, color: '#888', fontWeight: '500' },
   customerName: { color: '#FF6B35', fontWeight: '800' },
-
   card: {
     backgroundColor: '#fff', borderRadius: 18, padding: 18,
     elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6,
   },
-  cardTitle: { fontSize: 16, fontWeight: '800', color: '#1A1A1A', marginBottom: 12 },
-  divider: { backgroundColor: '#F0F0F0', marginVertical: 10 },
-
+  cardTitle: { fontSize: 16, fontWeight: '800', color: '#1A1A1A', marginBottom: 5 },
+  sectionLabel: { fontSize: 13, fontWeight: '700', color: '#888', marginBottom: 4 },
+  editLink: { fontSize: 12, fontWeight: '800', color: '#FF6B35' },
+  addressContainer: { paddingVertical: 5 },
+  addressText: { fontSize: 14, color: '#1A1A1A', fontWeight: '600', lineHeight: 20 },
+  noAddressText: { fontSize: 13, color: '#e74c3c', fontWeight: '700' },
+  divider: { backgroundColor: '#F0F0F0', marginVertical: 12 },
   itemRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   itemName: { fontSize: 13.5, fontWeight: '700', color: '#1A1A1A' },
   itemQty: { fontSize: 12, color: '#999', marginTop: 2 },
   itemPrice: { fontSize: 14, fontWeight: '700', color: '#FF6B35' },
-
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   summaryLabel: { fontSize: 13.5, color: '#888', fontWeight: '500' },
   summaryValue: { fontSize: 13.5, color: '#1A1A1A', fontWeight: '700' },
   totalLabel: { fontSize: 16, fontWeight: '700', color: '#1A1A1A' },
   totalPrice: { fontSize: 20, fontWeight: '800', color: '#FF6B35' },
-
   footer: {
-    flexDirection: 'row', backgroundColor: '#fff', paddingHorizontal: 20,
+    backgroundColor: '#fff', paddingHorizontal: 20,
     paddingVertical: 16, paddingBottom: Platform.OS === 'ios' ? 30 : 16,
     borderTopWidth: 1, borderTopColor: '#F0F0F0',
-    elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.06, shadowRadius: 8,
   },
   confirmBtn: {
-    flex: 1, backgroundColor: '#FF6B35', borderRadius: 16, paddingVertical: 15, alignItems: 'center',
-    elevation: 4, shadowColor: '#FF6B35', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 8,
+    backgroundColor: '#FF6B35', borderRadius: 16, paddingVertical: 15, alignItems: 'center',
+    elevation: 4,
   },
-  confirmText: { color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.3 },
+  confirmText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 });
 
 export default Checkout;

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ActivityIndicator, Image, Alert, ScrollView, TouchableOpacity, StatusBar, Platform, Dimensions } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, Image, Alert, ScrollView, TouchableOpacity, StatusBar, Platform } from 'react-native';
 import { DataTable, Text, Searchbar, Portal, Modal, PaperProvider, IconButton, Chip } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
-import { TextInput as RNTextInput } from 'react-native'; // Gagamit ng custom RN input para sa ProductForm style
+import { TextInput as RNTextInput } from 'react-native'; 
 import axios from 'axios';
 import { BASE_URL } from '../../../config';
 
@@ -18,7 +18,6 @@ const ManageProducts = ({ navigation }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState(null);
   
-  // Form States
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [stock, setStock] = useState('');
@@ -38,7 +37,7 @@ const ManageProducts = ({ navigation }) => {
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({ 
-      mediaTypes: ['images'], 
+      mediaTypes: ImagePicker.MediaTypeOptions.Images, 
       allowsMultipleSelection: true, 
       quality: 0.4 
     });
@@ -46,31 +45,29 @@ const ManageProducts = ({ navigation }) => {
   };
 
   const handleSubmit = async () => {
-    if (!name || !price || !description || !images.length || !stock) {
+    const stockNum = Number(stock);
+    const priceNum = Number(price);
+
+    if (!name || !price || !description || !images.length || stock === '') {
       return Alert.alert('Error', 'Please fill all fields 🍕');
     }
 
-    try {
-      const payload = { 
-        name, 
-        price: Number(price), 
-        stock: Number(stock),
-        description, 
-        category, 
-        images 
-      };
+    if (stockNum < 0) {
+      return Alert.alert('Invalid Stock', 'Hindi pwedeng maging negative ang stock count.');
+    }
 
+    try {
+      const payload = { name, price: priceNum, stock: stockNum, description, category, images };
       if (isEditing) {
         await axios.put(`${BASE_URL}/api/products/${currentId}`, payload);
       } else {
         await axios.post(`${BASE_URL}/api/products`, payload);
       }
-
       closeModal(); 
       fetchPizzas(); 
       Alert.alert('Success', isEditing ? 'Product updated!' : 'Product added!');
     } catch { 
-      Alert.alert('Error', 'Save failed. Check server connection.'); 
+      Alert.alert('Error', 'Save failed.'); 
     }
   };
 
@@ -112,21 +109,16 @@ const ManageProducts = ({ navigation }) => {
     <PaperProvider>
       <View style={s.container}>
         <StatusBar backgroundColor="#FF6B35" barStyle="light-content" />
-
-        {/* Header - ProductForm UI Style */}
         <View style={s.header}>
-          <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
-            <Text style={s.backIcon}>←</Text>
-          </TouchableOpacity>
+          <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}><Text style={s.backIcon}>←</Text></TouchableOpacity>
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={s.headerTitle}>Manage Inventory</Text>
             <Text style={s.headerSub}>{pizzas.length} total products</Text>
           </View>
         </View>
 
-        {/* Search & Filter */}
         <View style={s.controls}>
-          <Searchbar placeholder="Search..." value={searchQuery} onChangeText={setSearchQuery} style={s.search} />
+          <Searchbar placeholder="Search pizza, drinks..." value={searchQuery} onChangeText={setSearchQuery} style={s.search} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }} contentContainerStyle={{ gap: 8 }}>
             {FILTER_OPTIONS.map((cat) => (
               <Chip key={cat} selected={filterCategory === cat} onPress={() => setFilterCategory(cat)}
@@ -138,7 +130,6 @@ const ManageProducts = ({ navigation }) => {
           </ScrollView>
         </View>
 
-        {/* Data Table */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <DataTable style={s.table}>
             <DataTable.Header style={s.tableHeader}>
@@ -148,16 +139,24 @@ const ManageProducts = ({ navigation }) => {
               <DataTable.Title numeric style={{ width: 80 }}>Price</DataTable.Title>
               <DataTable.Title style={{ width: 90 }}>Actions</DataTable.Title>
             </DataTable.Header>
-            
             <ScrollView>
               {filtered.map((item) => (
                 <DataTable.Row key={item._id} style={s.row}>
-                  <DataTable.Cell style={{ width: 60 }}>
-                    <Image source={{ uri: item.images[0] }} style={s.thumb} />
+                  <DataTable.Cell style={{ width: 60 }}><Image source={{ uri: item.images[0] }} style={s.thumb} /></DataTable.Cell>
+                  <DataTable.Cell style={{ width: 140 }}>
+                    <View>
+                      <Text style={{ fontSize: 13, fontWeight: '700' }}>{item.name}</Text>
+                      {/* Only show SOLD OUT if stock is 0 or less */}
+                      {item.stock <= 0 && <Text style={{ fontSize: 10, color: '#e74c3c', fontWeight: 'bold' }}>SOLD OUT</Text>}
+                    </View>
                   </DataTable.Cell>
-                  <DataTable.Cell style={{ width: 140 }}>{item.name}</DataTable.Cell>
                   <DataTable.Cell numeric style={{ width: 70 }}>
-                    <Text style={{ fontWeight: 'bold', color: item.stock <= 5 ? '#FF6B35' : '#333' }}>{item.stock || 0}</Text>
+                    <Text style={{ 
+                      fontWeight: '800', 
+                      color: item.stock <= 0 ? '#e74c3c' : item.stock <= 5 ? '#FF9F1C' : '#2ecc71' 
+                    }}>
+                      {item.stock || 0}
+                    </Text>
                   </DataTable.Cell>
                   <DataTable.Cell numeric style={{ width: 80 }}>₱{item.price}</DataTable.Cell>
                   <DataTable.Cell style={{ width: 90 }}>
@@ -174,19 +173,15 @@ const ManageProducts = ({ navigation }) => {
           <Text style={s.fabText}>+ Add Product</Text>
         </TouchableOpacity>
 
-        {/* Modal - ProductForm Layout Style */}
         <Portal>
           <Modal visible={modalVisible} onDismiss={closeModal} contentContainerStyle={s.modal}>
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={s.modalTitle}>{isEditing ? 'Update Product' : 'New Product'}</Text>
-
               <RNTextInput style={s.customInput} value={name} onChangeText={setName} placeholder="Product Name" placeholderTextColor="#bbb" />
-              
               <View style={s.rowInput}>
                 <RNTextInput style={[s.customInput, { flex: 1, marginRight: 10 }]} value={price} onChangeText={setPrice} placeholder="Price" keyboardType="numeric" placeholderTextColor="#bbb" />
                 <RNTextInput style={[s.customInput, { flex: 1 }]} value={stock} onChangeText={setStock} placeholder="Stocks" keyboardType="numeric" placeholderTextColor="#bbb" />
               </View>
-
               <Text style={s.label}>Category</Text>
               <View style={s.categoryRow}>
                 {CATEGORIES.map((cat) => (
@@ -195,28 +190,16 @@ const ManageProducts = ({ navigation }) => {
                   </TouchableOpacity>
                 ))}
               </View>
-
               <RNTextInput style={[s.customInput, { height: 70 }]} value={description} onChangeText={setDescription} placeholder="Description" multiline placeholderTextColor="#bbb" />
-
               <Text style={s.label}>Photos ({images.length})</Text>
               <View style={s.imageGrid}>
                 {images.map((uri, i) => (
-                  <TouchableOpacity key={i} onPress={() => setImages(images.filter((_, j) => j !== i))}>
-                    <Image source={{ uri }} style={s.modalThumb} />
-                  </TouchableOpacity>
+                  <TouchableOpacity key={i} onPress={() => setImages(images.filter((_, j) => j !== i))}><Image source={{ uri }} style={s.modalThumb} /></TouchableOpacity>
                 ))}
-                <TouchableOpacity style={s.modalAddBtn} onPress={pickImage}>
-                  <Text style={s.modalAddBtnText}>+</Text>
-                </TouchableOpacity>
+                <TouchableOpacity style={s.modalAddBtn} onPress={pickImage}><Text style={s.modalAddBtnText}>+</Text></TouchableOpacity>
               </View>
-
-              <TouchableOpacity style={s.saveBtn} onPress={handleSubmit}>
-                <Text style={s.saveBtnText}>{isEditing ? 'Update Details' : 'Save Product'}</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity onPress={closeModal} style={{ marginTop: 15, alignItems: 'center' }}>
-                <Text style={{ color: '#888', fontWeight: '600' }}>Cancel</Text>
-              </TouchableOpacity>
+              <TouchableOpacity style={s.saveBtn} onPress={handleSubmit}><Text style={s.saveBtnText}>{isEditing ? 'Update Details' : 'Save Product'}</Text></TouchableOpacity>
+              <TouchableOpacity onPress={closeModal} style={{ marginTop: 15, alignItems: 'center' }}><Text style={{ color: '#888', fontWeight: '600' }}>Cancel</Text></TouchableOpacity>
             </ScrollView>
           </Modal>
         </Portal>
@@ -230,31 +213,22 @@ const s = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#FF6B35',
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 12 : 54,
-    paddingBottom: 20, paddingHorizontal: 20,
-    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
+    paddingBottom: 20, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
   },
   backBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
   backIcon: { color: '#fff', fontSize: 20, fontWeight: '700' },
   headerTitle: { color: '#fff', fontSize: 22, fontWeight: '800' },
   headerSub: { color: 'rgba(255,255,255,0.8)', fontSize: 13 },
-
   controls: { padding: 15 },
   search: { borderRadius: 12, backgroundColor: '#fff', elevation: 2, height: 45 },
   filterChip: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#E8E8E8' },
   activeChip: { backgroundColor: '#FF6B35', borderColor: '#FF6B35' },
-
   table: { minWidth: 500 },
   tableHeader: { backgroundColor: '#F5F5F5' },
-  row: { height: 70, borderBottomWidth: 0.5, borderBottomColor: '#EEE' },
+  row: { height: 75, borderBottomWidth: 0.5, borderBottomColor: '#EEE' },
   thumb: { width: 45, height: 45, borderRadius: 8 },
-
-  fab: { 
-    position: 'absolute', bottom: 20, right: 20, 
-    backgroundColor: '#FF6B35', paddingHorizontal: 20, paddingVertical: 12, 
-    borderRadius: 25, elevation: 5, flexDirection: 'row', alignItems: 'center' 
-  },
+  fab: { position: 'absolute', bottom: 20, right: 20, backgroundColor: '#FF6B35', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 25, elevation: 5 },
   fabText: { color: '#fff', fontWeight: '800' },
-
   modal: { backgroundColor: '#fff', padding: 25, margin: 15, borderRadius: 24, maxHeight: '90%' },
   modalTitle: { fontSize: 20, fontWeight: '800', marginBottom: 20, color: '#1A1A1A', textAlign: 'center' },
   customInput: { backgroundColor: '#FAFAFA', padding: 12, borderRadius: 12, marginBottom: 12, borderWidth: 1.5, borderColor: '#EEE', color: '#333' },
@@ -264,12 +238,10 @@ const s = StyleSheet.create({
   catBtn: { flex: 1, padding: 10, backgroundColor: '#fff', borderRadius: 10, alignItems: 'center', borderWidth: 1.5, borderColor: '#EEE' },
   activeCatBtn: { backgroundColor: '#FF6B35', borderColor: '#FF6B35' },
   catText: { fontWeight: '700', color: '#666', fontSize: 12 },
-
   imageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
   modalThumb: { width: 65, height: 65, borderRadius: 12 },
   modalAddBtn: { width: 65, height: 65, borderRadius: 12, backgroundColor: '#F5F5F5', justifyContent: 'center', alignItems: 'center', borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#CCC' },
   modalAddBtnText: { fontSize: 24, color: '#999' },
-
   saveBtn: { backgroundColor: '#FF6B35', padding: 15, borderRadius: 16, alignItems: 'center', marginTop: 10 },
   saveBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
 });

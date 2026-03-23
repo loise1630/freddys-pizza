@@ -5,11 +5,15 @@ import axios from 'axios';
 import { BASE_URL } from '../../../config';
 
 const STATUS_COLORS = {
-  Accepted: { bg: '#e8f5e9', text: '#2e7d32' },
-  Shipped:  { bg: '#e3f2fd', text: '#1565c0' },
-  Delivered:{ bg: '#f3e5f5', text: '#7b1fa2' },
-  Cancelled:{ bg: '#ffebee', text: '#c62828' },
+  Pending:   { bg: '#fff3cd', text: '#856404' },
+  Accepted:  { bg: '#e8f5e9', text: '#2e7d32' },
+  Shipped:   { bg: '#e3f2fd', text: '#1565c0' },
+  Delivered: { bg: '#f3e5f5', text: '#7b1fa2' },
+  Cancelled: { bg: '#ffebee', text: '#c62828' },
 };
+
+// Define the logical flow of statuses
+const STATUS_ORDER = ['Pending', 'Accepted', 'Shipped', 'Delivered'];
 
 const AdminOrders = () => {
   const [orders, setOrders] = useState([]);
@@ -21,8 +25,12 @@ const AdminOrders = () => {
     try {
       const { data } = await axios.get(`${BASE_URL}/api/orders`);
       setOrders(data);
-    } catch (e) { console.error('Fetch Error:', e); }
-    finally { setLoading(false); setRefreshing(false); }
+    } catch (e) {
+      console.error('Fetch Error:', e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
   useEffect(() => { fetchOrders(); }, []);
@@ -33,18 +41,20 @@ const AdminOrders = () => {
       await axios.put(`${BASE_URL}/api/orders/${id}/status`, { status: newStatus });
       Alert.alert('Success', `Order status updated to ${newStatus}`);
       fetchOrders();
-    } catch { Alert.alert('Error', 'Failed to update status'); }
+    } catch {
+      Alert.alert('Error', 'Failed to update status');
+    }
   };
 
   const handleCancelOrder = (id) => {
     setMenuVisible(null);
-    Alert.alert('Cancel Order', 'Sigurado ka bang i-ca-cancel ang order na ito?', [
+    Alert.alert('Cancel Order', 'Are you sure you want to cancel this order?', [
       { text: 'No' },
       { text: 'Yes, Cancel it', onPress: () => updateOrderRequest(id, 'Cancelled') },
     ]);
   };
 
-  const getStatusStyle = (st) => STATUS_COLORS[st] || { bg: '#fff3cd', text: '#856404' };
+  const getStatusStyle = (st) => STATUS_COLORS[st] || STATUS_COLORS.Pending;
 
   if (loading) return <View style={s.loader}><ActivityIndicator size="large" color="#FF6B35" /></View>;
 
@@ -53,13 +63,17 @@ const AdminOrders = () => {
       <View style={s.container}>
         <StatusBar backgroundColor="#FF6B35" barStyle="light-content" />
 
-        {/* Header */}
         <View style={s.header}>
           <Text style={s.headerTitle}>Manage Orders 📋</Text>
           <Text style={s.headerSub}>{orders.length} total orders</Text>
         </View>
 
-        <ScrollView horizontal refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchOrders(); }} />}>
+        <ScrollView 
+          horizontal 
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchOrders(); }} />
+          }
+        >
           <View>
             <DataTable style={s.table}>
               <DataTable.Header style={s.tableHeader}>
@@ -69,34 +83,71 @@ const AdminOrders = () => {
                 <DataTable.Title style={{ width: 120 }}>Status</DataTable.Title>
                 <DataTable.Title style={{ width: 80 }}>Action</DataTable.Title>
               </DataTable.Header>
+              
               <ScrollView style={{ height: '100%' }}>
-                {orders.map((item) => (
-                  <DataTable.Row key={item._id} style={s.row}>
-                    <DataTable.Cell style={{ width: 80 }}>
-                      <Text style={s.idText}>#{item._id.slice(-4).toUpperCase()}</Text>
-                    </DataTable.Cell>
-                    <DataTable.Cell style={{ width: 100 }}><Text>{item.userName}</Text></DataTable.Cell>
-                    <DataTable.Cell numeric style={{ width: 80 }}>
-                      <Text>₱{item.totalAmount?.toFixed(0) || 0}</Text>
-                    </DataTable.Cell>
-                    <DataTable.Cell style={{ width: 120 }}>
-                      <Chip style={{ backgroundColor: getStatusStyle(item.status).bg, height: 30 }}
-                        textStyle={{ color: getStatusStyle(item.status).text, fontSize: 11, fontWeight: 'bold' }}>
-                        {item.status}
-                      </Chip>
-                    </DataTable.Cell>
-                    <DataTable.Cell style={{ width: 80 }}>
-                      <Menu visible={menuVisible === item._id} onDismiss={() => setMenuVisible(null)}
-                        anchor={<IconButton icon="chevron-down-circle-outline" size={22} iconColor="#666" onPress={() => setMenuVisible(item._id)} />}>
-                        {['Pending', 'Accepted', 'Shipped', 'Delivered'].map(st => (
-                          <Menu.Item key={st} onPress={() => updateOrderRequest(item._id, st)} title={st} />
-                        ))}
-                        <Divider />
-                        <Menu.Item onPress={() => handleCancelOrder(item._id)} title="Cancel Order" titleStyle={{ color: '#c62828' }} />
-                      </Menu>
-                    </DataTable.Cell>
-                  </DataTable.Row>
-                ))}
+                {orders.map((item) => {
+                  const currentIdx = STATUS_ORDER.indexOf(item.status);
+                  const isFinalStatus = item.status === 'Delivered' || item.status === 'Cancelled';
+
+                  return (
+                    <DataTable.Row key={item._id} style={s.row}>
+                      <DataTable.Cell style={{ width: 80 }}>
+                        <Text style={s.idText}>#{item._id.slice(-4).toUpperCase()}</Text>
+                      </DataTable.Cell>
+                      <DataTable.Cell style={{ width: 100 }}>
+                        <Text>{item.userName}</Text>
+                      </DataTable.Cell>
+                      <DataTable.Cell numeric style={{ width: 80 }}>
+                        <Text>₱{item.totalAmount?.toFixed(0) || 0}</Text>
+                      </DataTable.Cell>
+                      <DataTable.Cell style={{ width: 120 }}>
+                        <Chip 
+                          style={{ backgroundColor: getStatusStyle(item.status).bg, height: 30 }}
+                          textStyle={{ color: getStatusStyle(item.status).text, fontSize: 11, fontWeight: 'bold' }}
+                        >
+                          {item.status}
+                        </Chip>
+                      </DataTable.Cell>
+                      
+                      <DataTable.Cell style={{ width: 80 }}>
+                        {!isFinalStatus ? (
+                          <Menu 
+                            visible={menuVisible === item._id} 
+                            onDismiss={() => setMenuVisible(null)}
+                            anchor={
+                              <IconButton 
+                                icon="chevron-down-circle-outline" 
+                                size={22} 
+                                iconColor="#666" 
+                                onPress={() => setMenuVisible(item._id)} 
+                              />
+                            }
+                          >
+                            {STATUS_ORDER.map((st, idx) => (
+                              // Only show statuses that come AFTER the current status
+                              idx > currentIdx && (
+                                <Menu.Item 
+                                  key={st} 
+                                  onPress={() => updateOrderRequest(item._id, st)} 
+                                  title={`Mark as ${st}`} 
+                                />
+                              )
+                            ))}
+                            <Divider />
+                            <Menu.Item 
+                              onPress={() => handleCancelOrder(item._id)} 
+                              title="Cancel Order" 
+                              titleStyle={{ color: '#c62828' }} 
+                            />
+                          </Menu>
+                        ) : (
+                          // Show a locked icon or nothing for final statuses
+                          <IconButton icon="check-decagram" size={20} iconColor="#bdc3c7" disabled />
+                        )}
+                      </DataTable.Cell>
+                    </DataTable.Row>
+                  );
+                })}
               </ScrollView>
             </DataTable>
           </View>

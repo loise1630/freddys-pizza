@@ -12,7 +12,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('Connected to MongoDB Atlas!'))
+  .then(() => console.log('Connected to MongoDB Atlas! 🍕'))
   .catch(err => console.error('MongoDB Connection Error:', err));
 
 // --- MODELS ---
@@ -188,7 +188,7 @@ app.put('/api/orders/:id/status', async (req, res) => {
     if (user?.pushToken && Expo.isExpoPushToken(user.pushToken)) {
       const chunks = expo.chunkPushNotifications([{
         to: user.pushToken, sound: 'default',
-        title: "Freddy's Pizza Update",
+        title: "Freddy's Pizza Update 🍕",
         body: `Ang status ng iyong order ay: ${status}`,
         data: { orderId: order._id, status },
       }]);
