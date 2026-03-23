@@ -1,39 +1,69 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, StatusBar, Platform, TouchableOpacity } from 'react-native';
-import { Text, Avatar, Card, TextInput, Button, ActivityIndicator } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, Alert, StatusBar, Platform, TouchableOpacity, Image } from 'react-native';
+import { Text, Card, TextInput, Button, IconButton } from 'react-native-paper';
 import { useSelector, useDispatch } from 'react-redux';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import axios from 'axios';
 import { BASE_URL } from '../../../config';
 
+const FIELDS = [
+  { label: 'Full Name',        key: 'name',    icon: 'account',    keyboard: 'default' },
+  { label: 'Phone Number',     key: 'phone',   icon: 'phone',      keyboard: 'phone-pad' },
+  { label: 'Delivery Address', key: 'address', icon: 'map-marker', multiline: true },
+];
+
 const UserProfile = () => {
-  const user = useSelector(state => state.cartItems.user);
+  const user     = useSelector(state => state.cartItems.user);
   const dispatch = useDispatch();
+
   const [isEditing, setIsEditing] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [name, setName] = useState(user?.name || '');
-  const [phone, setPhone] = useState(user?.phone || '');
-  const [address, setAddress] = useState(user?.address || '');
-  const [password, setPassword] = useState('');
+  const [loading, setLoading]     = useState(false);
+  const [showPass, setShowPass]   = useState(false);
+  const [password, setPassword]   = useState('');
+  const [photo, setPhoto]         = useState(user?.image || null);
+  const [form, setForm]           = useState({ name: user?.name || '', phone: user?.phone || '', address: user?.address || '' });
+
+  const set = (key) => (val) => setForm(f => ({ ...f, [key]: val }));
 
   useEffect(() => {
-    if (user) { setName(user.name); setPhone(user.phone); setAddress(user.address || ''); }
+    if (user) {
+      setForm({ name: user.name, phone: user.phone || '', address: user.address || '' });
+      setPhoto(user.image || null);
+    }
   }, [user]);
 
+  const pickPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return Alert.alert('Permission needed', 'Allow access to your photos.');
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+    });
+    if (!result.canceled) setPhoto(result.assets[0].uri);
+  };
+
   const handleUpdate = async () => {
+    if (!form.name.trim()) return Alert.alert('Error', 'Name cannot be empty.');
     setLoading(true);
     try {
-      const { data, status } = await axios.put(`${BASE_URL}/api/users/${user._id}`, {
-        name, phone, address, ...(password.length > 0 && { password }),
-      });
-      if (status === 200) {
-        dispatch({ type: 'UPDATE_USER', payload: data });
-        Alert.alert('Success! 🎉', 'Profile updated in database.');
-        setIsEditing(false); setPassword('');
-      }
+      const payload = {
+        ...form,
+        image: photo,
+        ...(password.trim() && { password: password.trim() }),
+      };
+      const { data } = await axios.put(`${BASE_URL}/api/users/${user._id}`, payload);
+      dispatch({ type: 'UPDATE_USER', payload: data });
+      setForm({ name: data.name, phone: data.phone ?? '', address: data.address ?? '' });
+      setPhoto(data.image || null);
+      const stored = await AsyncStorage.getItem('user');
+      if (stored) await AsyncStorage.setItem('user', JSON.stringify({ ...JSON.parse(stored), ...data }));
+      Alert.alert('Success! 🎉', 'Profile updated.');
+      setIsEditing(false); setPassword('');
     } catch (e) {
-      console.error(e);
-      Alert.alert('Error', 'Failed to update database.');
+      Alert.alert('Error', e.response?.data?.message || 'Failed to update.');
     } finally { setLoading(false); }
   };
 
@@ -41,9 +71,22 @@ const UserProfile = () => {
     <View style={s.container}>
       <StatusBar backgroundColor="#FF6B35" barStyle="light-content" />
 
-      {/* Header */}
       <View style={s.header}>
-        <Avatar.Icon size={72} icon="account" style={s.avatar} color="#fff" />
+        {/* Profile Photo */}
+        <TouchableOpacity onPress={isEditing ? pickPhoto : null} style={s.avatarWrap} activeOpacity={isEditing ? 0.8 : 1}>
+          {photo ? (
+            <Image source={{ uri: photo }} style={s.avatarImg} />
+          ) : (
+            <View style={s.avatarPlaceholder}>
+              <Text style={s.avatarInitial}>{user?.name?.charAt(0)?.toUpperCase() || '?'}</Text>
+            </View>
+          )}
+          {isEditing && (
+            <View style={s.cameraBtn}>
+              <IconButton icon="camera" size={14} iconColor="#FF6B35" style={{ margin: 0 }} />
+            </View>
+          )}
+        </TouchableOpacity>
         <Text style={s.userName}>{user?.name || 'Guest'}</Text>
         <Text style={s.userEmail}>{user?.email}</Text>
       </View>
@@ -51,22 +94,17 @@ const UserProfile = () => {
       <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
         <Card style={s.card}>
           <Card.Content>
-            {[
-              { label: 'Full Name', value: name, setter: setName, icon: 'account', keyboard: 'default' },
-              { label: 'Phone Number', value: phone, setter: setPhone, icon: 'phone', keyboard: 'phone-pad' },
-              { label: 'Delivery Address', value: address, setter: setAddress, icon: 'map-marker', multiline: true },
-            ].map(({ label, value, setter, icon, keyboard, multiline }) => (
-              <TextInput key={label} label={label} value={value} onChangeText={setter}
+            {FIELDS.map(({ label, key, icon, keyboard, multiline }) => (
+              <TextInput key={key} label={label} value={form[key]} onChangeText={set(key)}
                 disabled={!isEditing} mode="outlined" style={s.input}
-                keyboardType={keyboard || 'default'} multiline={multiline}
+                keyboardType={keyboard} multiline={multiline}
                 left={<TextInput.Icon icon={icon} />} />
             ))}
-
             <TextInput label="New Password" placeholder="Leave blank to keep current"
               value={password} onChangeText={setPassword} disabled={!isEditing}
-              mode="outlined" secureTextEntry={!showPassword} style={s.input}
+              mode="outlined" secureTextEntry={!showPass} style={s.input}
               left={<TextInput.Icon icon="lock" />}
-              right={isEditing && <TextInput.Icon icon={showPassword ? 'eye-off' : 'eye'} onPress={() => setShowPassword(!showPassword)} />}
+              right={isEditing && <TextInput.Icon icon={showPass ? 'eye-off' : 'eye'} onPress={() => setShowPass(!showPass)} />}
             />
           </Card.Content>
         </Card>
@@ -76,7 +114,7 @@ const UserProfile = () => {
             <Button mode="contained" onPress={() => setIsEditing(true)} style={s.editBtn}>Edit Profile</Button>
           ) : (
             <View style={s.actionRow}>
-              <Button mode="outlined" onPress={() => setIsEditing(false)} style={s.halfBtn}>Cancel</Button>
+              <Button mode="outlined" onPress={() => { setIsEditing(false); setPhoto(user?.image || null); }} style={s.halfBtn}>Cancel</Button>
               <Button mode="contained" onPress={handleUpdate} loading={loading} style={[s.halfBtn, { backgroundColor: '#FF6B35' }]}>Save</Button>
             </View>
           )}
@@ -86,26 +124,46 @@ const UserProfile = () => {
   );
 };
 
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FAFAFA' },
+const AVATAR_SIZE = 90;
 
+const s = StyleSheet.create({
+  container:   { flex: 1, backgroundColor: '#FAFAFA' },
   header: {
     alignItems: 'center', backgroundColor: '#FF6B35',
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight + 16 : 54,
-    paddingBottom: 28,
-    borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
+    paddingBottom: 28, borderBottomLeftRadius: 24, borderBottomRightRadius: 24,
   },
-  avatar: { backgroundColor: 'rgba(255,255,255,0.25)', marginBottom: 10 },
-  userName: { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
-  userEmail: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 3 },
 
-  body: { padding: 20, paddingBottom: 40 },
-  card: { elevation: 3, borderRadius: 16, backgroundColor: '#fff' },
-  input: { marginBottom: 12 },
+  avatarWrap: { marginBottom: 12, position: 'relative' },
+  avatarImg: {
+    width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2,
+    borderWidth: 3, borderColor: 'rgba(255,255,255,0.6)',
+  },
+  avatarPlaceholder: {
+    width: AVATAR_SIZE, height: AVATAR_SIZE, borderRadius: AVATAR_SIZE / 2,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderWidth: 3, borderColor: 'rgba(255,255,255,0.6)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  avatarInitial: { color: '#fff', fontSize: 36, fontWeight: '800' },
+  cameraBtn: {
+    position: 'absolute', bottom: 0, right: 0,
+    backgroundColor: '#fff', borderRadius: 14, width: 28, height: 28,
+    justifyContent: 'center', alignItems: 'center',
+    elevation: 3,
+  },
+
+
+  userName:    { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
+  userEmail:   { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 3 },
+
+  body:        { padding: 20, paddingBottom: 40 },
+  card:        { elevation: 3, borderRadius: 16, backgroundColor: '#fff' },
+  input:       { marginBottom: 12 },
   buttonGroup: { marginTop: 20 },
-  editBtn: { backgroundColor: '#FF6B35' },
-  actionRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  halfBtn: { width: '48%' },
+  editBtn:     { backgroundColor: '#FF6B35' },
+  actionRow:   { flexDirection: 'row', justifyContent: 'space-between' },
+  halfBtn:     { width: '48%' },
 });
 
 export default UserProfile;
