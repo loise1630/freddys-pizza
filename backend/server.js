@@ -215,7 +215,7 @@ app.get('/api/reviews/user/:userId', async (req, res) => {
   } catch (e) { err500(res, e); }
 });
 
-app.get('/api/reviews/:productId', async (req, res) => {
+app.get('/api/reviews/product/:productId', async (req, res) => {
   try {
     const reviews = await Review.find({ productId: req.params.productId }).sort({ createdAt: -1 });
     res.json(reviews);
