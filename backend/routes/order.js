@@ -14,30 +14,60 @@ router.get('/', async (req, res) => {
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// PUT: Update Status + Notification (35pts Milestone)
+// GET: Orders by user name ← KULANG ITO
+router.get('/user/:name', async (req, res) => {
+    try {
+        const orders = await Order.find({ userName: req.params.name }).sort({ createdAt: -1 });
+        res.json(orders);
+    } catch (err) { res.status(500).json({ message: err.message }); }
+});
+
+// POST: Create new order ← KULANG DIN ITO
+router.post('/', async (req, res) => {
+    try {
+        const { userName, userAddress, items, totalAmount, status } = req.body;
+
+        if (!userName || !items || items.length === 0) {
+            return res.status(400).json({ message: 'Missing required fields.' });
+        }
+
+        const newOrder = new Order({
+            userName,
+            userAddress,
+            items,
+            totalAmount,
+            status: status || 'Pending',
+        });
+
+        const savedOrder = await newOrder.save();
+        res.status(201).json(savedOrder);
+    } catch (err) {
+        console.error('Create Order Error:', err);
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// PUT: Update Status + Notification
 router.put('/:id/status', async (req, res) => {
     try {
         const { status } = req.body;
-        
-        // eto Update status at i-populate ang user
+
         const order = await Order.findByIdAndUpdate(
-            req.params.id, 
-            { status: status }, 
+            req.params.id,
+            { status: status },
             { new: true }
         );
 
-        // Kunin ang user separately para sa token (since schema is in server.js)
         const User = mongoose.model('User');
-        const user = await User.findOne({ name: order.userName }); 
+        const user = await User.findOne({ name: order.userName });
 
-        // 2. Logic para sa Push Notification
         if (user && user.pushToken && Expo.isExpoPushToken(user.pushToken)) {
             let messages = [{
                 to: user.pushToken,
                 sound: 'default',
                 title: "Freddy's Pizza Update",
                 body: `Order status: ${status}`,
-                data: { orderId: order._id }, 
+                data: { orderId: order._id },
             }];
 
             let chunks = expo.chunkPushNotifications(messages);
