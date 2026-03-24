@@ -57,6 +57,16 @@ const orderSchema = new mongoose.Schema({
 });
 const Order = mongoose.model('Order', orderSchema);
 
+const reviewSchema = new mongoose.Schema({
+  productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+  userId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userName:  { type: String, required: true },
+  rating:    { type: Number, required: true, min: 1, max: 5 },
+  comment:   { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+});
+const Review = mongoose.model('Review', reviewSchema);
+
 // --- HELPERS ---
 const err500 = (res, e) => {
   console.error("Server Error:", e.message);
@@ -199,6 +209,45 @@ app.put('/api/orders/:id/status', async (req, res) => {
       }
     }
     res.json(order);
+  } catch (e) { err500(res, e); }
+});
+
+/** 4. REVIEWS **/
+app.post('/api/reviews/add', async (req, res) => {
+  try {
+    const { productId, userId, userName, rating, comment } = req.body;
+    const existing = await Review.findOne({ productId, userId });
+    if (existing) return res.status(400).json({ message: 'You already reviewed this product.' });
+    const review = new Review({ productId, userId, userName, rating, comment });
+    await review.save();
+    res.status(201).json(review);
+  } catch (e) { err500(res, e); }
+});
+
+app.get('/api/reviews/user/:userId', async (req, res) => {
+  try {
+    const reviews = await Review.find({ userId: req.params.userId }).sort({ createdAt: -1 });
+    res.json(reviews);
+  } catch (e) { err500(res, e); }
+});
+
+app.get('/api/reviews/:productId', async (req, res) => {
+  try {
+    const reviews = await Review.find({ productId: req.params.productId }).sort({ createdAt: -1 });
+    res.json(reviews);
+  } catch (e) { err500(res, e); }
+});
+
+app.put('/api/reviews/update/:id', async (req, res) => {
+  try {
+    const { rating, comment } = req.body;
+    const updated = await Review.findByIdAndUpdate(
+      req.params.id,
+      { rating, comment },
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ message: 'Review not found.' });
+    res.json(updated);
   } catch (e) { err500(res, e); }
 });
 
