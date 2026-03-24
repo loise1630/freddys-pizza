@@ -33,26 +33,27 @@ const userSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 
 const productSchema = new mongoose.Schema({
-  name:         { type: String, required: true },
-  price:        { type: Number, required: true },
-  description:  { type: String, required: true },
-  category:     { type: String, default: 'Pizza' },
-  images:       { type: [String], required: true },
-  stock:        { type: Number, default: 0 },
+  name:        { type: String, required: true },
+  price:       { type: Number, required: true },
+  description: { type: String, required: true },
+  category:    { type: String, default: 'Pizza' },
+  images:      { type: [String], required: true },
+  stock:       { type: Number, default: 0 },
 });
 const Product = mongoose.model('Product', productSchema);
 
 const orderSchema = new mongoose.Schema({
-  userName:     { type: String, required: true },
+  userName:    { type: String, required: true },
+  userAddress: { type: String, default: '' },
   items: [{
     productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
-    name: String, 
-    price: Number,
-    quantity: { type: Number, default: 1 },
+    name:      String,
+    price:     Number,
+    quantity:  { type: Number, default: 1 },
   }],
   totalAmount: { type: Number, required: true },
-  status:       { type: String, default: 'Pending' },
-  createdAt:    { type: Date, default: Date.now },
+  status:      { type: String, default: 'Pending' },
+  createdAt:   { type: Date, default: Date.now },
 });
 const Order = mongoose.model('Order', orderSchema);
 
@@ -80,13 +81,12 @@ app.post('/api/users/register', async (req, res) => {
     const { name, email, password, phone, address } = req.body;
     const existing = await User.findOne({ email: email.toLowerCase().trim() });
     if (existing) return res.status(400).json({ message: 'User already exists' });
-    
-    const newUser = new User({ 
-      name, 
-      email: email.toLowerCase().trim(), 
-      password, 
-      phone, 
-      address 
+    const newUser = new User({
+      name,
+      email: email.toLowerCase().trim(),
+      password,
+      phone,
+      address
     });
     await newUser.save();
     res.status(201).json({ message: 'Registered successfully!' });
@@ -98,6 +98,23 @@ app.post('/api/users/update-push-token', async (req, res) => {
     const { userId, pushToken } = req.body;
     const u = await User.findByIdAndUpdate(userId, { pushToken: pushToken || '' }, { new: true });
     res.json({ message: 'Token updated', user: u?.name });
+  } catch (e) { err500(res, e); }
+});
+
+app.put('/api/users/:id', async (req, res) => {
+  try {
+    const { name, phone, address, image, password } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ message: 'Name cannot be empty.' });
+    const updateData = {
+      name: name.trim(),
+      phone: phone || '',
+      address: address || '',
+      image: image || '',
+    };
+    if (password && password.trim()) updateData.password = password.trim();
+    const updatedUser = await User.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    if (!updatedUser) return res.status(404).json({ message: 'User not found.' });
+    res.status(200).json(updatedUser);
   } catch (e) { err500(res, e); }
 });
 
@@ -121,13 +138,27 @@ app.post('/api/products', async (req, res) => {
   } catch (e) { err500(res, e); }
 });
 
+app.put('/api/products/:id', async (req, res) => {
+  try {
+    const updated = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!updated) return res.status(404).json({ message: 'Product not found.' });
+    res.json(updated);
+  } catch (e) { err500(res, e); }
+});
+
+app.delete('/api/products/:id', async (req, res) => {
+  try {
+    await Product.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Product deleted.' });
+  } catch (e) { err500(res, e); }
+});
+
 /** 3. ORDERS **/
 app.post('/api/orders', async (req, res) => {
   try {
     const order = new Order(req.body);
     await order.save();
-    // Bawasan ang stock ng bawat item
-    await Promise.all(req.body.items.map(i => 
+    await Promise.all(req.body.items.map(i =>
       Product.findByIdAndUpdate(i.productId, { $inc: { stock: -i.quantity } })
     ));
     res.status(201).json(order);
@@ -141,13 +172,18 @@ app.get('/api/orders', async (req, res) => {
   } catch (e) { err500(res, e); }
 });
 
+app.get('/api/orders/user/:name', async (req, res) => {
+  try {
+    const orders = await Order.find({ userName: req.params.name }).sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (e) { err500(res, e); }
+});
+
 app.put('/api/orders/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
     const order = await Order.findByIdAndUpdate(req.params.id, { status }, { new: true });
     const user = await User.findOne({ name: order.userName });
-
-    // Send Notification kung may pushToken ang user
     if (user?.pushToken && Expo.isExpoPushToken(user.pushToken)) {
       const messages = [{
         to: user.pushToken,
@@ -158,11 +194,8 @@ app.put('/api/orders/:id/status', async (req, res) => {
       }];
       const chunks = expo.chunkPushNotifications(messages);
       for (const chunk of chunks) {
-        try {
-          await expo.sendPushNotificationsAsync(chunk);
-        } catch (error) {
-          console.error("Push Error:", error);
-        }
+        try { await expo.sendPushNotificationsAsync(chunk); }
+        catch (error) { console.error("Push Error:", error); }
       }
     }
     res.json(order);
