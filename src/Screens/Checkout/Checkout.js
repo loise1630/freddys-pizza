@@ -11,27 +11,23 @@ const Checkout = ({ navigation }) => {
   const dispatch = useDispatch();
   const cartItems = useSelector(state => state.cartItems.cartItems);
   const user = useSelector(state => state.cartItems.user);
-  
+
   const totalPrice = cartItems.reduce((acc, item) => acc + item.price * (item.quantity || 1), 0);
 
   const confirmOrder = async () => {
-    // 1. Check kung may laman ang cart
     if (!cartItems.length) return Alert.alert('Empty Cart', 'Magdagdag muna ng pizza sa cart!');
 
-    // 2. STOCK VALIDATION: Bawal i-checkout ang zero stock o kulang ang stock
-    const outOfStockItems = cartItems.filter(item => (item.stock <= 0 || item.quantity > item.stock));
-    
+    const outOfStockItems = cartItems.filter(item => item.stock <= 0 || item.quantity > item.stock);
     if (outOfStockItems.length > 0) {
       const names = outOfStockItems.map(i => i.name).join(', ');
       return Alert.alert(
-        'Out of Stock 🚫',
+        'Out of Stock',
         `Ang mga sumusunod ay wala nang sapat na stock: ${names}. Pakibawasan o alisin sila sa cart.`,
         [{ text: 'Bumalik sa Cart', onPress: () => navigation.goBack() }]
       );
     }
 
-    // 3. ADDRESS VALIDATION: Check if address exists in profile
-    if (!user?.address || user.address.trim() === "") {
+    if (!user?.address || user.address.trim() === '') {
       return Alert.alert(
         'Missing Address',
         'Please set your address.',
@@ -42,19 +38,20 @@ const Checkout = ({ navigation }) => {
       );
     }
 
+    const items = cartItems.map(item => ({
+      productId: item.productId,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity || 1,
+    }));
+
     setLoading(true);
     try {
       const res = await axios.post(`${BASE_URL}/api/orders`, {
         userName: user?.name || 'Guest',
-        userAddress: user?.address, 
-        items: cartItems.map(({ productId, _id, name, price, quantity }) => ({
-          productId: productId || _id, 
-          name, 
-          price, 
-          quantity: quantity || 1
-        })),
+        userAddress: user?.address,
+        items,
         totalAmount: totalPrice,
-        status: 'Pending'
       });
 
       if (res.status === 201) {
@@ -65,8 +62,8 @@ const Checkout = ({ navigation }) => {
         ]);
       }
     } catch (e) {
-      console.error('Checkout Error:', e);
-      Alert.alert('Error', 'Check server connection.');
+      const msg = e?.response?.data?.message || e?.response?.data?.error || 'Check server connection.';
+      Alert.alert('Error', msg);
     } finally {
       setLoading(false);
     }
@@ -76,7 +73,6 @@ const Checkout = ({ navigation }) => {
     <View style={s.container}>
       <StatusBar backgroundColor="#FF6B35" barStyle="light-content" />
 
-      {/* Header */}
       <View style={s.header}>
         <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
           <Text style={s.backIcon}>←</Text>
@@ -89,7 +85,6 @@ const Checkout = ({ navigation }) => {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scroll}>
 
-        {/* Customer Tag */}
         <View style={s.customerTag}>
           <Text style={s.customerIcon}>👤</Text>
           <Text style={s.customerText}>
@@ -97,12 +92,10 @@ const Checkout = ({ navigation }) => {
           </Text>
         </View>
 
-        {/* Main Card: Order Summary & Address */}
         <View style={s.card}>
           <Text style={s.cardTitle}>Order Summary 📝</Text>
           <Divider style={s.divider} />
 
-          {/* Address Section */}
           <View style={s.addressContainer}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text style={s.sectionLabel}>Delivery Address 📍</Text>
@@ -119,7 +112,6 @@ const Checkout = ({ navigation }) => {
 
           <Divider style={s.divider} />
 
-          {/* Items List with Stock Warning */}
           {cartItems.map((item, i) => {
             const noStock = item.stock <= 0 || item.quantity > item.stock;
             return (
@@ -138,7 +130,7 @@ const Checkout = ({ navigation }) => {
           })}
 
           <Divider style={s.divider} />
-          
+
           <View style={s.summaryRow}>
             <Text style={s.summaryLabel}>Subtotal</Text>
             <Text style={s.summaryValue}>₱{totalPrice.toFixed(2)}</Text>
@@ -147,9 +139,9 @@ const Checkout = ({ navigation }) => {
             <Text style={s.summaryLabel}>Delivery Fee</Text>
             <Text style={[s.summaryValue, { color: '#4CAF50' }]}>FREE</Text>
           </View>
-          
+
           <Divider style={s.divider} />
-          
+
           <View style={s.summaryRow}>
             <Text style={s.totalLabel}>Total Amount</Text>
             <Text style={s.totalPrice}>₱{totalPrice.toFixed(2)}</Text>
@@ -157,17 +149,16 @@ const Checkout = ({ navigation }) => {
         </View>
       </ScrollView>
 
-      {/* Footer */}
       <View style={s.footer}>
         {loading ? (
           <ActivityIndicator size="large" color="#FF6B35" style={{ flex: 1 }} />
         ) : (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
-              s.confirmBtn, 
+              s.confirmBtn,
               (!user?.address || cartItems.some(item => item.stock <= 0)) && { backgroundColor: '#bdc3c7' }
-            ]} 
-            onPress={confirmOrder} 
+            ]}
+            onPress={confirmOrder}
             activeOpacity={0.85}
           >
             <Text style={s.confirmText}>✓ Confirm Order</Text>

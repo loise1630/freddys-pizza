@@ -12,7 +12,7 @@ const CATEGORIES = ["Pizza", "Drinks", "Sides"];
 const ProductForm = ({ navigation }) => {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
-  const [stock, setStock] = useState(""); // <-- Bagong state para sa Stock
+  const [stock, setStock] = useState(""); // 
   const [description, setDescription] = useState("");
   const [images, setImages] = useState([]);
   const [category, setCategory] = useState("Pizza");
@@ -50,7 +50,7 @@ const ProductForm = ({ navigation }) => {
       const { status } = await axios.post(`${BASE_URL}/api/products`, payload);
       
       if (status === 201) { 
-        Alert.alert("Success", `${name} added to inventory! 🍕`); 
+        Alert.alert("Success", `${name} added to inventory!`); 
         navigation.goBack(); // Babalik sa ManageProducts para ma-refresh ang listahan
       }
     } catch (e) { 
@@ -217,4 +217,4 @@ const s = StyleSheet.create({
   saveBtnText: { color: '#fff', fontWeight: '800', fontSize: 17 },
 });
 
-export default ProductForm;
+export default ProductForm; 

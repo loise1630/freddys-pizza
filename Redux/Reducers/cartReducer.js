@@ -7,13 +7,19 @@ const cartReducer = (state = initialState, action) => {
   switch (action.type) {
 
     case 'ADD_TO_CART': {
-      const exists = state.cartItems.findIndex(i => i._id === action.payload._id);
+      const exists = state.cartItems.findIndex(i => i.productId === action.payload._id);
       if (exists >= 0) {
         const updated = [...state.cartItems];
         updated[exists] = { ...updated[exists], quantity: (updated[exists].quantity || 1) + 1 };
         return { ...state, cartItems: updated };
       }
-      return { ...state, cartItems: [...state.cartItems, { ...action.payload, quantity: 1 }] };
+      return {
+        ...state,
+        cartItems: [
+          ...state.cartItems,
+          { ...action.payload, productId: action.payload._id, quantity: 1 },
+        ],
+      };
     }
 
     case 'REMOVE_FROM_CART':
@@ -41,9 +47,11 @@ const cartReducer = (state = initialState, action) => {
     case 'LOGIN_USER':
       return { ...state, user: action.payload };
 
-    // ✅ Merges only updated fields — triggers immediate re-render everywhere
     case 'UPDATE_USER':
       return { ...state, user: { ...state.user, ...action.payload } };
+
+    case 'LOGOUT_USER':
+      return { ...state, user: null };
 
     default:
       return state;
