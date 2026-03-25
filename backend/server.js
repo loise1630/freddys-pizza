@@ -30,27 +30,27 @@ const userSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 
 const productSchema = new mongoose.Schema({
-  name:        { type: String, required: true },
-  price:       { type: Number, required: true },
-  description: { type: String, required: true },
-  category:    { type: String, default: 'Pizza' },
-  images:      { type: [String], required: true },
-  stock:       { type: Number, default: 0 },
+  name:         { type: String, required: true },
+  price:        { type: Number, required: true },
+  description:  { type: String, required: true },
+  category:     { type: String, default: 'Pizza' },
+  images:       { type: [String], required: true },
+  stock:        { type: Number, default: 0 },
 });
 const Product = mongoose.model('Product', productSchema);
 
 const orderSchema = new mongoose.Schema({
-  userName:    { type: String, required: true },
-  userAddress: { type: String, default: '' },
+  userName:     { type: String, required: true },
+  userAddress:  { type: String, default: '' },
   items: [{
     productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
-    name:      String,
-    price:     Number,
-    quantity:  { type: Number, default: 1 },
+    name: String, 
+    price: Number,
+    quantity: { type: Number, default: 1 },
   }],
   totalAmount: { type: Number, required: true },
-  status:      { type: String, default: 'Pending' },
-  createdAt:   { type: Date, default: Date.now },
+  status:       { type: String, default: 'Pending' },
+  createdAt:    { type: Date, default: Date.now },
 });
 const Order = mongoose.model('Order', orderSchema);
 
@@ -60,7 +60,7 @@ const reviewSchema = new mongoose.Schema({
   userName:  { type: String, required: true },
   rating:    { type: Number, required: true, min: 1, max: 5 },
   comment:   { type: String, required: true },
-  createdAt: { type: Date, default: Date.now },
+  createdAt: { type: Date, default: Date.now }
 });
 const Review = mongoose.model('Review', reviewSchema);
 
@@ -69,7 +69,6 @@ const err500 = (res, e) => {
   res.status(500).json({ error: e.message });
 };
 
-/** 1. AUTH & USERS **/
 app.post('/api/users/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -111,7 +110,6 @@ app.put('/api/users/:id', async (req, res) => {
   } catch (e) { err500(res, e); }
 });
 
-/** 2. PRODUCTS **/
 app.get('/api/products', async (req, res) => {
   try {
     const { search, category } = req.query;
@@ -146,7 +144,6 @@ app.delete('/api/products/:id', async (req, res) => {
   } catch (e) { err500(res, e); }
 });
 
-/** 3. ORDERS **/
 app.post('/api/orders', async (req, res) => {
   try {
     const order = new Order(req.body);
@@ -182,7 +179,7 @@ app.put('/api/orders/:id/status', async (req, res) => {
         to: user.pushToken,
         sound: 'default',
         title: "Freddy's Pizza Update 🍕",
-        body: `Ang status ng iyong order ay: ${status}`,
+        body: `Your order status is: ${status}`,
         data: { orderId: order._id, status },
       }];
       const chunks = expo.chunkPushNotifications(messages);
@@ -195,7 +192,6 @@ app.put('/api/orders/:id/status', async (req, res) => {
   } catch (e) { err500(res, e); }
 });
 
-/** 4. REVIEWS **/
 app.post('/api/reviews/add', async (req, res) => {
   try {
     const { productId, userId, userName, rating, comment } = req.body;
