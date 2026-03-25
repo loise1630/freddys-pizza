@@ -2,9 +2,6 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 
-// --- REVIEW MODEL ---
-// Nilagay ko na rito para sigurado, pero kung may models/Review.js ka na, 
-// pwede mong i-require na lang: const Review = require('../models/Review');
 const reviewSchema = new mongoose.Schema({
     productId: { 
         type: mongoose.Schema.Types.ObjectId, 
@@ -42,7 +39,7 @@ router.post('/add', async (req, res) => {
         });
 
         await newReview.save();
-        res.status(201).json({ message: "Review added successfully!", review: newReview });
+        res.status(201).json({ message: "Review added successfuly!", review: newReview });
     } catch (error) {
         console.error("Add Review Error:", error);
         res.status(500).json({ error: error.message });
@@ -62,7 +59,7 @@ router.get('/product/:productId', async (req, res) => {
 });
 
 // 3. GET: Fetch reviews ng isang specific user
-// Ito yung ginagamit sa MyOrders para malaman kung "Rate" o "Edit" ang button
+// eto naman y yung ginagamit sa MyOrders para malaman kung "Rate" o "Edit" ang button
 router.get('/user/:userId', async (req, res) => {
     try {
         const reviews = await Review.find({ userId: req.params.userId });
@@ -94,7 +91,6 @@ router.put('/update/:id', async (req, res) => {
     }
 });
 
-// 5. DELETE: (Optional) Kung gusto mong bigyan ng option ang user na burahin ang review
 router.delete('/delete/:id', async (req, res) => {
     try {
         await Review.findByIdAndDelete(req.params.id);

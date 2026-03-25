@@ -22,7 +22,7 @@ router.post('/login', async (req, res) => {
     }
 });
 
-// 2. GOOGLE LOGIN
+// 2. GOOGLE LOGIN PERO DI TO GUMAGANA, TINANGGAL K NLNG MUNA BOY
 router.post('/google-login', async (req, res) => {
     try {
         const { email, name, googleId, image } = req.body;
@@ -65,7 +65,7 @@ router.patch('/:id/push-token', async (req, res) => {
     }
 });
 
-// 4. UPDATE PROFILE ← ITO ANG KULANG!
+// 4. UPDATE PROFILE
 router.put('/:id', async (req, res) => {
     try {
         const { name, phone, address, image, password } = req.body;
